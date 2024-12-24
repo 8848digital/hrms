@@ -19,7 +19,7 @@ class TestFullandFinalStatement(FrappeTestCase):
 
 	@if_app_installed("assets")
 	def setup_fnf(self):
-		from erpnext.assets.doctype.asset.test_asset import create_asset_data
+		from assets.assets.doctype.asset.test_asset import create_asset_data
 
 		create_asset_data()
 
