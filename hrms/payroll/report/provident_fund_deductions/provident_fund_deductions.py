@@ -56,10 +56,10 @@ def get_conditions(filters):
 		conditions.append("sal.company = '%s' " % (filters["company"]))
 
 	if filters.get("month"):
-		conditions.append("month(sal.start_date) = '%s' " % (filters["month"]))
+		conditions.append("EXTRACT(MONTH FROM sal.start_date) = %s" % (filters["month"]))
 
 	if filters.get("year"):
-		conditions.append("year(start_date) = '%s' " % (filters["year"]))
+		conditions.append("EXTRACT(YEAR FROM start_date) = %s" % filters["year"])
 
 	if filters.get("mode_of_payment"):
 		conditions.append("sal.mode_of_payment = '%s' " % (filters["mode_of_payment"]))
@@ -162,10 +162,15 @@ def get_data(filters):
 
 @frappe.whitelist()
 def get_years():
-	year_list = frappe.db.sql_list(
-		"""select distinct YEAR(end_date) from `tabSalary Slip` ORDER BY YEAR(end_date) DESC"""
-	)
-	if not year_list:
-		year_list = [getdate().year]
+    year_list = frappe.db.sql_list(
+        """SELECT year FROM (
+               SELECT DISTINCT EXTRACT(YEAR FROM end_date)::INTEGER AS year 
+               FROM `tabSalary Slip`
+           ) subquery
+           ORDER BY year DESC"""
+    )
 
-	return "\n".join(str(year) for year in year_list)
+    if not year_list:
+        year_list = [getdate().year]
+
+    return "\n".join(str(year) for year in year_list)
