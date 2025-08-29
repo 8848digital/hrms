@@ -77,10 +77,10 @@ def get_conditions(filters):
 		conditions.append("company = '%s' " % (filters["company"]))
 
 	if filters.get("month"):
-		conditions.append("EXTRACT(MONTH FROM start_date) = %s" % (filters["month"]))
+		conditions.append("month(start_date) = '%s' " % (filters["month"]))
 
 	if filters.get("year"):
-		conditions.append("EXTRACT(YEAR FROM start_date) = %s" % filters["year"])
+		conditions.append("year(start_date) = '%s' " % (filters["year"]))
 
 	return " and ".join(conditions)
 
@@ -90,6 +90,7 @@ def get_data(filters):
 
 	fields = ["employee", "branch", "bank_name", "bank_ac_no", "salary_mode"]
 	if erpnext.get_region() == "India":
+		frappe.log_error("Hello")
 		fields += ["ifsc_code", "micr_code"]
 
 	employee_details = frappe.get_list("Employee", fields=fields)

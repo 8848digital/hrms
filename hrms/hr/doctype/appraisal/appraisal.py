@@ -32,6 +32,7 @@ class Appraisal(Document, AppraisalMixin):
 		self.calculate_final_score()
 
 	def validate_duplicate(self):
+		frappe.log_error("Hello")
 		Appraisal = frappe.qb.DocType("Appraisal")
 		duplicate = (
 			frappe.qb.from_(Appraisal)
@@ -330,8 +331,6 @@ def get_kras_for_employee(doctype, txt, searchfield, start, page_len, filters):
 		},
 		"name",
 	)
-	if not appraisal:
-		return []
 
 	return frappe.get_all(
 		"Appraisal KRA",
