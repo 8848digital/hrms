@@ -9,17 +9,21 @@ from erpnext.setup.doctype.employee.test_employee import make_employee
 from erpnext.setup.doctype.holiday_list.test_holiday_list import set_holiday_list
 
 from hrms.hr.doctype.leave_allocation.leave_allocation import get_unused_leaves
-from hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry import process_expired_allocation
+from hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry import (
+    process_expired_allocation,
+)
 from hrms.hr.doctype.leave_period.test_leave_period import create_leave_period
 from hrms.hr.doctype.leave_policy.test_leave_policy import create_leave_policy
 from hrms.hr.doctype.leave_policy_assignment.leave_policy_assignment import (
-	create_assignment_for_multiple_employees,
+    create_assignment_for_multiple_employees,
 )
 from hrms.payroll.doctype.salary_slip.test_salary_slip import (
-	make_holiday_list,
-	make_leave_application,
+    make_holiday_list,
+    make_leave_application,
 )
-from hrms.payroll.doctype.salary_structure.test_salary_structure import make_salary_structure
+from hrms.payroll.doctype.salary_structure.test_salary_structure import (
+    make_salary_structure,
+)
 from hrms.tests.test_utils import get_first_sunday
 
 test_records = frappe.get_test_records("Leave Type")
@@ -75,16 +79,7 @@ class TestLeaveEncashment(FrappeTestCase):
 
 	@set_holiday_list("_Test Leave Encashment", "_Test Company")
 	def test_leave_balance_value_and_amount(self):
-		leave_encashment = frappe.get_doc(
-			dict(
-				doctype="Leave Encashment",
-				employee=self.employee,
-				leave_type="_Test Leave Type Encashment",
-				leave_period=self.leave_period.name,
-				encashment_date=self.leave_period.to_date,
-				currency="INR",
-			)
-		).insert()
+		leave_encashment = self.create_test_leave_encashment()
 
 		self.assertEqual(leave_encashment.leave_balance, 10)
 		self.assertTrue(leave_encashment.actual_encashable_days, 5)
@@ -119,16 +114,7 @@ class TestLeaveEncashment(FrappeTestCase):
 			"_Test Leave Type Encashment",
 		)
 
-		leave_encashment = frappe.get_doc(
-			dict(
-				doctype="Leave Encashment",
-				employee=self.employee,
-				leave_type="_Test Leave Type Encashment",
-				leave_period=self.leave_period.name,
-				encashment_date=self.leave_period.to_date,
-				currency="INR",
-			)
-		).insert()
+		leave_encashment = self.create_test_leave_encashment()
 
 		self.assertEqual(leave_encashment.leave_balance, 7)
 		# non-encashable leaves = 5, total leaves are 7, so encashable days = 7-5 = 2
@@ -164,16 +150,7 @@ class TestLeaveEncashment(FrappeTestCase):
 			"_Test Leave Type Encashment",
 		)
 
-		leave_encashment = frappe.get_doc(
-			dict(
-				doctype="Leave Encashment",
-				employee=self.employee,
-				leave_type="_Test Leave Type Encashment",
-				leave_period=self.leave_period.name,
-				encashment_date=self.leave_period.to_date,
-				currency="INR",
-			)
-		).insert()
+		leave_encashment = self.create_test_leave_encashment()
 
 		self.assertEqual(leave_encashment.leave_balance, 7)
 		# leave balance = 7, but encashment limit = 3 so encashable days = 3
@@ -208,16 +185,7 @@ class TestLeaveEncashment(FrappeTestCase):
 			"_Test Leave Type Encashment",
 		)
 
-		leave_encashment = frappe.get_doc(
-			dict(
-				doctype="Leave Encashment",
-				employee=self.employee,
-				leave_type="_Test Leave Type Encashment",
-				leave_period=self.leave_period.name,
-				encashment_date=self.leave_period.to_date,
-				currency="INR",
-			)
-		).insert()
+		leave_encashment = self.create_test_leave_encashment()
 
 		self.assertEqual(leave_encashment.leave_balance, 7)
 		# 1. non-encashable leaves = 5, total leaves are 7, so encashable days = 7-5 = 2
@@ -235,16 +203,7 @@ class TestLeaveEncashment(FrappeTestCase):
 
 	@set_holiday_list("_Test Leave Encashment", "_Test Company")
 	def test_creation_of_leave_ledger_entry_on_submit(self):
-		leave_encashment = frappe.get_doc(
-			dict(
-				doctype="Leave Encashment",
-				employee=self.employee,
-				leave_type="_Test Leave Type Encashment",
-				leave_period=self.leave_period.name,
-				encashment_date=self.leave_period.to_date,
-				currency="INR",
-			)
-		).insert()
+		leave_encashment = self.create_test_leave_encashment()
 
 		leave_encashment.submit()
 
@@ -352,16 +311,37 @@ class TestLeaveEncashment(FrappeTestCase):
 			other_details={"leave_encashment_amount_per_day": 50},
 		)
 
-		leave_encashment = frappe.get_doc(
-			{
-				"doctype": "Leave Encashment",
-				"employee": employee,
-				"leave_type": self.leave_type,
-				"leave_period": self.leave_period.name,
-				"encashment_date": self.leave_period.to_date,
-				"encashment_days": encashment_days,
-				"currency": "INR",
-			}
-		).insert()
+		leave_encashment = self.create_test_leave_encashment(
+			employee=employee, encashment_days=encashment_days, leave_type=self.leave_type
+		)
 		leave_encashment.submit()
 		return leave_encashment
+	
+
+def create_leave_encashment(**args):
+	if args:
+		args = frappe._dict(args)
+	leave_encashment = frappe.new_doc("Leave Encashment")
+	leave_encashment.company = args.company or "_Test Company"
+	leave_encashment.employee = args.employee
+	leave_encashment.posting_date = args.posting_date or getdate()
+	leave_encashment.leave_type = args.leave_type
+	leave_encashment.leave_period = args.leave_period
+	leave_encashment.encashment_date = args.encashment_date or getdate()
+	leave_encashment.currency = args.currency or frappe.get_cached_value(
+		"Company", "_Test Company", "default_currency"
+	)
+	leave_encashment.pay_via_payment_entry = args.pay_via_payment_entry or 0
+	if leave_encashment.pay_via_payment_entry:
+		leave_encashment.payable_account = args.payable_account or frappe.get_cached_value(
+			"Company", "_Test Company", "default_payable_account"
+		)
+		leave_encashment.expense_account = args.expense_account or "Administrative Expenses - _TC"
+		leave_encashment.cost_center = args.cost_center or "Main - _TC"
+
+	if args.encashment_days:
+		leave_encashment.encashment_days = args.encashment_days
+
+	leave_encashment.insert()
+
+	return leave_encashment
