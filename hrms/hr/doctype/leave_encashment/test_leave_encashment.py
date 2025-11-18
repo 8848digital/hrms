@@ -10,21 +10,17 @@ from erpnext.setup.doctype.holiday_list.test_holiday_list import set_holiday_lis
 
 from hrms.hr.doctype.expense_claim.test_expense_claim import get_payable_account
 from hrms.hr.doctype.leave_allocation.leave_allocation import get_unused_leaves
-from hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry import (
-    process_expired_allocation,
-)
+from hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry import process_expired_allocation
 from hrms.hr.doctype.leave_period.test_leave_period import create_leave_period
 from hrms.hr.doctype.leave_policy.test_leave_policy import create_leave_policy
 from hrms.hr.doctype.leave_policy_assignment.leave_policy_assignment import (
-    create_assignment_for_multiple_employees,
+	create_assignment_for_multiple_employees,
 )
 from hrms.payroll.doctype.salary_slip.test_salary_slip import (
-    make_holiday_list,
-    make_leave_application,
+	make_holiday_list,
+	make_leave_application,
 )
-from hrms.payroll.doctype.salary_structure.test_salary_structure import (
-    make_salary_structure,
-)
+from hrms.payroll.doctype.salary_structure.test_salary_structure import make_salary_structure
 from hrms.tests.test_utils import get_first_sunday
 
 test_records = frappe.get_test_records("Leave Type")
@@ -205,7 +201,6 @@ class TestLeaveEncashment(FrappeTestCase):
 	@set_holiday_list("_Test Leave Encashment", "_Test Company")
 	def test_creation_of_leave_ledger_entry_on_submit(self):
 		leave_encashment = self.create_test_leave_encashment()
-
 		leave_encashment.submit()
 
 		leave_ledger_entry = frappe.get_all(
@@ -309,6 +304,7 @@ class TestLeaveEncashment(FrappeTestCase):
 			"Salary Structure for Encashment",
 			"Monthly",
 			employee,
+			from_date=start_date,
 			other_details={"leave_encashment_amount_per_day": 50},
 		)
 
@@ -317,7 +313,110 @@ class TestLeaveEncashment(FrappeTestCase):
 		)
 		leave_encashment.submit()
 		return leave_encashment
-	
+
+	@set_holiday_list("_Test Leave Encashment", "_Test Company")
+	def test_status_of_leave_encashment_after_payment_via_salary_slip(self):
+		from hrms.payroll.doctype.salary_slip.test_salary_slip import make_employee_salary_slip
+		from hrms.payroll.doctype.salary_structure.test_salary_structure import (
+			create_salary_structure_assignment,
+		)
+
+		salary_structure = make_salary_structure(
+			"Salary Structure for Encashment",
+			"Monthly",
+			self.employee,
+			other_details={"leave_encashment_amount_per_day": 50},
+		)
+
+		create_salary_structure_assignment(
+			employee=self.employee,
+			salary_structure=salary_structure.name,
+			company="_Test Company",
+			currency="INR",
+		)
+
+		leave_encashment = self.create_test_leave_encashment(encashment_date=getdate())
+		leave_encashment.submit()
+
+		ss = make_employee_salary_slip(self.employee, "Monthly", salary_structure=salary_structure.name)
+
+		ss.submit()
+		leave_encashment.reload()
+		self.assertEqual(leave_encashment.status, "Paid")
+
+		ss.cancel()
+		leave_encashment.reload()
+		self.assertEqual(leave_encashment.status, "Unpaid")
+
+	def test_status_of_leave_encashment_after_payment_via_payment_entry_and_fnf(self):
+		from hrms.hr.doctype.full_and_final_statement.test_full_and_final_statement import (
+			create_full_and_final_statement,
+		)
+		from hrms.overrides.employee_payment_entry import get_payment_entry_for_employee
+
+		payable_account = get_payable_account("_Test Company")
+
+		leave_encashment = self.create_test_leave_encashment(
+			pay_via_payment_entry=1, payable_account=payable_account
+		)
+		leave_encashment.submit()
+
+		pe = get_payment_entry_for_employee(leave_encashment.doctype, leave_encashment.name)
+		pe.reference_no = "1"
+		pe.reference_date = getdate()
+		pe.save()
+		pe.submit()
+
+		leave_encashment.reload()
+		self.assertEqual(leave_encashment.status, "Paid")
+
+		pe.cancel()
+		leave_encashment.reload()
+		self.assertEqual(leave_encashment.status, "Unpaid")
+
+		frappe.db.set_value("Employee", self.employee, "relieving_date", getdate())
+
+		fnf = create_full_and_final_statement(self.employee)
+		fnf.payables = []
+		fnf.receivables = []
+		fnf.append(
+			"payables",
+			{
+				"component": "Leave Encashment",
+				"reference_document_type": "Leave Encashment",
+				"reference_document": leave_encashment.name,
+				"amount": leave_encashment.encashment_amount,
+				"account": leave_encashment.payable_account,
+				"status": "Settled",
+			},
+		)
+		fnf.submit()
+		jv = fnf.create_journal_entry()
+		jv.accounts[1].account = frappe.get_cached_value("Company", "_Test Company", "default_bank_account")
+		jv.cheque_no = "123456"
+		jv.cheque_date = getdate()
+		jv.save()
+		jv.submit()
+
+		leave_encashment.reload()
+		self.assertEqual(leave_encashment.status, "Paid")
+
+		jv.cancel()
+		leave_encashment.reload()
+		self.assertEqual(leave_encashment.status, "Unpaid")
+
+	def create_test_leave_encashment(self, **kwargs):
+		"""Helper method to create leave encashment with default values"""
+		args = {
+			"employee": self.employee,
+			"leave_type": "_Test Leave Type Encashment",
+			"leave_period": self.leave_period.name,
+			"encashment_date": self.leave_period.to_date,
+			"currency": "INR",
+		}
+		args.update(kwargs)
+		return create_leave_encashment(**args)
+
 
 def create_leave_encashment(**args):
 	if args:
