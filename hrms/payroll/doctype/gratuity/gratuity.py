@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import _, bold
-from frappe.query_builder.functions import Sum
+from frappe.query_builder.functions import Abs, Sum
 from frappe.utils import cstr, flt, get_datetime, get_link_to_form
 
 from erpnext.accounts.general_ledger import make_gl_entries
@@ -56,8 +56,7 @@ class Gratuity(AccountsController):
 			self.create_gl_entries()
 
 	def on_cancel(self):
-		self.ignore_linked_doctypes = ["GL Entry"]
-		self.ignore_linked_doctypes = ["GL Entry", "Payment Ledger Entry"]
+		self.ignore_linked_doctypes = ["GL Entry", "Payment Ledger Entry", "Advance Payment Ledger Entry"]
 		self.create_gl_entries(cancel=True)
 		self.set_status(update=True)
 
