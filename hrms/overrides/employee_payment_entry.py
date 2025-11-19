@@ -317,7 +317,7 @@ def get_total_amount_and_exchange_rate(
         exchange_rate = ref_doc.get("exchange_rate")
         if party_account_currency != ref_doc.currency:
             total_amount = flt(total_amount) * flt(exchange_rate)
-        if party_account_currency == company_currency:
+        if party_account_currency == company_currency and party_account_currency == ref_doc.currency:
             exchange_rate = 1
 
     elif ref_doc.doctype == "Leave Encashment":
