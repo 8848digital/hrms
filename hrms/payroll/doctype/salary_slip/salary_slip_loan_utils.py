@@ -87,6 +87,35 @@ def _get_loan_details(doc: "SalarySlip") -> dict[str, Any]:
 	return loan_details
 
 @if_lending_app_installed
+def process_loan_interest_accrual_and_demand(doc: "SalarySlip"):
+	loans = _get_loan_details(doc)
+	if not loans:
+		return
+
+	loan_demand_exists = frappe.db.exists("DocType", "Loan Demand")
+	if loan_demand_exists:
+		from lending.loan_management.doctype.process_loan_demand.process_loan_demand import (
+			process_daily_loan_demands,
+		)
+		from lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual import (
+			process_loan_interest_accrual_for_loans,
+		)
+	else:
+		from lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual import (
+			process_loan_interest_accrual_for_term_loans,
+		)
+
+	for loan in loans:
+		if loan.get("is_term_loan"):
+			if loan_demand_exists:
+				process_loan_interest_accrual_for_loans(doc.end_date, loan.loan_product, loan.name)
+				process_daily_loan_demands(doc.end_date, loan.loan_product, loan.name)
+			else:
+				process_loan_interest_accrual_for_term_loans(
+					posting_date=doc.end_date, loan_product=loan.loan_product, loan=loan.name
+				)
+
+@if_lending_app_installed
 def process_loan_interest_accruals(doc: "SalarySlip"):
 	from lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual import (
 		process_loan_interest_accrual_for_term_loans,
