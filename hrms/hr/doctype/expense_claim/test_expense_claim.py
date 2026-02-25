@@ -408,8 +408,8 @@ class TestExpenseClaim(FrappeTestCase):
 
         gl_entries = frappe.db.sql(
             """select account, debit, credit
-			from `tabGL Entry` where voucher_type='Expense Claim' and voucher_no=%s
-			order by account asc""",
+            from `tabGL Entry` where voucher_type='Expense Claim' and voucher_no=%s
+            order by account asc""",
             expense_claim.name,
             as_dict=1,
         )

@@ -182,12 +182,12 @@ def validate_house_rent_dates(doc):
 
     proofs = frappe.db.sql(
         """
-		select name
-		from `tabEmployee Tax Exemption Proof Submission`
-		where
-			docstatus=1 and employee=%(employee)s and payroll_period=%(payroll_period)s
-			and (rented_from_date between %(from_date)s and %(to_date)s or rented_to_date between %(from_date)s and %(to_date)s)
-	""",
+        select name
+        from `tabEmployee Tax Exemption Proof Submission`
+        where
+            docstatus=1 and employee=%(employee)s and payroll_period=%(payroll_period)s
+            and (rented_from_date between %(from_date)s and %(to_date)s or rented_to_date between %(from_date)s and %(to_date)s)
+    """,
         {
             "employee": doc.employee,
             "payroll_period": doc.payroll_period,

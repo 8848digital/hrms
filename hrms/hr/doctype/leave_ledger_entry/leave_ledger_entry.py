@@ -37,15 +37,15 @@ def validate_leave_allocation_against_leave_application(ledger):
     """Checks that leave allocation has no leave application against it"""
     leave_application_records = frappe.db.sql_list(
         """
-		SELECT transaction_name
-		FROM `tabLeave Ledger Entry`
-		WHERE
-			employee=%s
-			AND leave_type=%s
-			AND transaction_type='Leave Application'
-			AND from_date>=%s
-			AND to_date<=%s
-	""",
+        SELECT transaction_name
+        FROM `tabLeave Ledger Entry`
+        WHERE
+            employee=%s
+            AND leave_type=%s
+            AND transaction_type='Leave Application'
+            AND from_date>=%s
+            AND to_date<=%s
+    """,
         (ledger.employee, ledger.leave_type, ledger.from_date, ledger.to_date),
     )
 
@@ -91,10 +91,10 @@ def delete_ledger_entry(ledger):
     expired_entry = get_previous_expiry_ledger_entry(ledger)
     frappe.db.sql(
         """DELETE
-		FROM `tabLeave Ledger Entry`
-		WHERE
-			`transaction_name`=%s
-			OR `name`=%s""",
+        FROM `tabLeave Ledger Entry`
+        WHERE
+            `transaction_name`=%s
+            OR `name`=%s""",
         (ledger.transaction_name, expired_entry),
     )
 
@@ -147,24 +147,24 @@ def process_expired_allocation():
     # fetch non expired leave ledger entry of transaction_type allocation
     expire_allocation = frappe.db.sql(
         """
-		SELECT
-			leaves, to_date, from_date, employee, leave_type,
-			is_carry_forward, transaction_name as name, transaction_type
-		FROM `tabLeave Ledger Entry` l
-		WHERE (NOT EXISTS
-			(SELECT name
-				FROM `tabLeave Ledger Entry`
-				WHERE
-					transaction_name = l.transaction_name
-					AND transaction_type = 'Leave Allocation'
-					AND name<>l.name
-					AND docstatus = 1
-					AND (
-						is_carry_forward=l.is_carry_forward
-						OR (is_carry_forward = 0 AND leave_type not in %s)
-			)))
-			AND transaction_type = 'Leave Allocation'
-			AND to_date < %s""",
+        SELECT
+            leaves, to_date, from_date, employee, leave_type,
+            is_carry_forward, transaction_name as name, transaction_type
+        FROM `tabLeave Ledger Entry` l
+        WHERE (NOT EXISTS
+            (SELECT name
+                FROM `tabLeave Ledger Entry`
+                WHERE
+                    transaction_name = l.transaction_name
+                    AND transaction_type = 'Leave Allocation'
+                    AND name<>l.name
+                    AND docstatus = 1
+                    AND (
+                        is_carry_forward=l.is_carry_forward
+                        OR (is_carry_forward = 0 AND leave_type not in %s)
+            )))
+            AND transaction_type = 'Leave Allocation'
+            AND to_date < %s""",
         (leave_type, today()),
         as_dict=1,
     )

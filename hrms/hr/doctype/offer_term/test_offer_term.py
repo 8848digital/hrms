@@ -7,4 +7,4 @@ from frappe.tests.utils import FrappeTestCase
 
 
 class TestOfferTerm(FrappeTestCase):
-	pass
+    pass

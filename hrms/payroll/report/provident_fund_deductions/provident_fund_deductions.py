@@ -138,8 +138,8 @@ def get_data(filters):
 
     salary_slips = frappe.db.sql(
         """ select sal.name from `tabSalary Slip` sal
-		where docstatus = 1 %s
-		"""
+        where docstatus = 1 %s
+        """
         % (conditions),
         as_dict=1,
     )
@@ -147,7 +147,7 @@ def get_data(filters):
     component_type_dict = frappe._dict(
         frappe.db.sql(
             """ select name, component_type from `tabSalary Component`
-		where component_type in ('Provident Fund', 'Additional Provident Fund', 'Provident Fund Loan')"""
+        where component_type in ('Provident Fund', 'Additional Provident Fund', 'Provident Fund Loan')"""
         )
     )
 
@@ -157,13 +157,13 @@ def get_data(filters):
     # nosemgrep: frappe-semgrep-rules.rules.frappe-using-db-sql
     entry = frappe.db.sql(
         """ select sal.name, sal.employee, sal.employee_name, ded.salary_component, ded.amount
-		from `tabSalary Slip` sal, `tabSalary Detail` ded
-		where sal.name = ded.parent
-		and ded.parentfield = 'deductions'
-		and ded.parenttype = 'Salary Slip'
-		and sal.docstatus = 1 {}
-		and ded.salary_component in ({})
-		""".format(
+        from `tabSalary Slip` sal, `tabSalary Detail` ded
+        where sal.name = ded.parent
+        and ded.parentfield = 'deductions'
+        and ded.parenttype = 'Salary Slip'
+        and sal.docstatus = 1 {}
+        and ded.salary_component in ({})
+        """.format(
             conditions, ", ".join(["%s"] * len(component_type_dict.keys()))
         ),
         tuple(component_type_dict.keys()),

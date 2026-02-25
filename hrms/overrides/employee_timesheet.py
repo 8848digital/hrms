@@ -5,14 +5,14 @@ from projects.projects.doctype.timesheet.timesheet import Timesheet
 
 
 class EmployeeTimesheet(Timesheet):
-	def set_status(self):
-		self.status = {"0": "Draft", "1": "Submitted", "2": "Cancelled"}[str(self.docstatus or 0)]
+    def set_status(self):
+        self.status = {"0": "Draft", "1": "Submitted", "2": "Cancelled"}[str(self.docstatus or 0)]
 
-		if self.per_billed == 100:
-			self.status = "Billed"
+        if self.per_billed == 100:
+            self.status = "Billed"
 
-		if self.salary_slip:
-			self.status = "Payslip"
+        if self.salary_slip:
+            self.status = "Payslip"
 
-		if self.sales_invoice and self.salary_slip:
-			self.status = "Completed"
+        if self.sales_invoice and self.salary_slip:
+            self.status = "Completed"

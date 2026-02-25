@@ -99,10 +99,10 @@ def get_message() -> str:
     count = 0
     for status, abbr in status_map.items():
         message += f"""
-			<span style='border-left: 2px solid {colors[count]}; padding-right: 12px; padding-left: 5px; margin-right: 3px;'>
-				{_(status)} - {abbr}
-			</span>
-		"""
+            <span style='border-left: 2px solid {colors[count]}; padding-right: 12px; padding-left: 5px; margin-right: 3px;'>
+                {_(status)} - {abbr}
+            </span>
+        """
         count += 1
 
     return message
@@ -672,9 +672,9 @@ def get_attendance_status_for_detailed_view(
     for shift, status_dict in employee_attendance.items():
         row = {"shift": shift}
         """{
-	            'Morning Shift': {1: 'Present', 2: 'Absent', ...}
-	            'Evening Shift': {1: 'Absent', 2: 'Present', ...}
-	    },"""
+                'Morning Shift': {1: 'Present', 2: 'Absent', ...}
+                'Evening Shift': {1: 'Absent', 2: 'Present', ...}
+        },"""
         for d in total_days:
             d = getdate(d)
 

@@ -55,8 +55,8 @@ class TestGratuity(IntegrationTestCase):
     @set_holiday_list("Salary Slip Test Holiday List", "_Test Company")
     def test_gratuity_based_on_current_slab_via_additional_salary(self):
         """
-        Range	|	Fraction
-        5-0		|	1
+        Range    |    Fraction
+        5-0        |    1
         """
         sal_slip = create_salary_slip(self.employee)
 
@@ -109,7 +109,7 @@ class TestGratuity(IntegrationTestCase):
         Range   |   Fraction
         0-3     |   0.5
         3-6     |   1.0
-        6-9		|	1.5
+        6-9        |    1.5
         """
         from hrms.overrides.employee_payment_entry import get_payment_entry_for_employee
 

@@ -194,10 +194,10 @@ def validate_dates(doc, from_date, to_date, restrict_future_dates=True):
 
 def validate_overlap(doc, from_date, to_date, company=None):
     query = """
-		select name
-		from `tab{0}`
-		where name != %(name)s
-		"""
+        select name
+        from `tab{0}`
+        where name != %(name)s
+        """
     query += get_doc_condition(doc.doctype)
 
     if not doc.name:
@@ -227,13 +227,13 @@ def validate_overlap(doc, from_date, to_date, company=None):
 def get_doc_condition(doctype):
     if doctype == "Compensatory Leave Request":
         return "and employee = %(employee)s and docstatus < 2 \
-		and (work_from_date between %(from_date)s and %(to_date)s \
-		or work_end_date between %(from_date)s and %(to_date)s \
-		or (work_from_date < %(from_date)s and work_end_date > %(to_date)s))"
+        and (work_from_date between %(from_date)s and %(to_date)s \
+        or work_end_date between %(from_date)s and %(to_date)s \
+        or (work_from_date < %(from_date)s and work_end_date > %(to_date)s))"
     elif doctype == "Leave Period":
         return "and company = %(company)s and (from_date between %(from_date)s and %(to_date)s \
-			or to_date between %(from_date)s and %(to_date)s \
-			or (from_date < %(from_date)s and to_date > %(to_date)s))"
+            or to_date between %(from_date)s and %(to_date)s \
+            or (from_date < %(from_date)s and to_date > %(to_date)s))"
 
 
 def throw_overlap_error(doc, exists_for, overlap_doc, from_date, to_date):
@@ -320,13 +320,13 @@ def get_total_exemption_amount(declarations):
 def get_leave_period(from_date, to_date, company):
     leave_period = frappe.db.sql(
         """
-		select name, from_date, to_date
-		from `tabLeave Period`
-		where company=%(company)s and is_active=1
-			and (from_date between %(from_date)s and %(to_date)s
-				or to_date between %(from_date)s and %(to_date)s
-				or (from_date < %(from_date)s and to_date > %(to_date)s))
-	""",
+        select name, from_date, to_date
+        from `tabLeave Period`
+        where company=%(company)s and is_active=1
+            and (from_date between %(from_date)s and %(to_date)s
+                or to_date between %(from_date)s and %(to_date)s
+                or (from_date < %(from_date)s and to_date > %(to_date)s))
+    """,
         {"from_date": from_date, "to_date": to_date, "company": company},
         as_dict=1,
     )
@@ -624,16 +624,16 @@ def get_salary_assignments(employee, payroll_period):
 def get_sal_slip_total_benefit_given(employee, payroll_period, component=False):
     total_given_benefit_amount = 0
     query = """
-	select sum(sd.amount) as total_amount
-	from `tabSalary Slip` ss, `tabSalary Detail` sd
-	where ss.employee=%(employee)s
-	and ss.docstatus = 1 and ss.name = sd.parent
-	and sd.is_flexible_benefit = 1 and sd.parentfield = "earnings"
-	and sd.parenttype = "Salary Slip"
-	and (ss.start_date between %(start_date)s and %(end_date)s
-		or ss.end_date between %(start_date)s and %(end_date)s
-		or (ss.start_date < %(start_date)s and ss.end_date > %(end_date)s))
-	"""
+    select sum(sd.amount) as total_amount
+    from `tabSalary Slip` ss, `tabSalary Detail` sd
+    where ss.employee=%(employee)s
+    and ss.docstatus = 1 and ss.name = sd.parent
+    and sd.is_flexible_benefit = 1 and sd.parentfield = "earnings"
+    and sd.parenttype = "Salary Slip"
+    and (ss.start_date between %(start_date)s and %(end_date)s
+        or ss.end_date between %(start_date)s and %(end_date)s
+        or (ss.start_date < %(start_date)s and ss.end_date > %(end_date)s))
+    """
 
     if component:
         query += "and sd.salary_component = %(component)s"
@@ -726,12 +726,12 @@ def get_previous_claimed_amount(
 ):
     total_claimed_amount = 0
     query = """
-	select sum(claimed_amount) as 'total_amount'
-	from `tabEmployee Benefit Claim`
-	where employee=%(employee)s
-	and docstatus = 1
-	and (claim_date between %(start_date)s and %(end_date)s)
-	"""
+    select sum(claimed_amount) as 'total_amount'
+    from `tabEmployee Benefit Claim`
+    where employee=%(employee)s
+    and docstatus = 1
+    and (claim_date between %(start_date)s and %(end_date)s)
+    """
     if non_pro_rata:
         query += "and pay_against_benefit_claim = 1"
     if component:
