@@ -2644,8 +2644,8 @@ def make_deduction_salary_component(setup=False, test_tax=False, company_list=No
 def get_tax_paid_in_period(employee):
     tax_paid_amount = frappe.db.sql(
         """select sum(sd.amount) from `tabSalary Detail`
-		sd join `tabSalary Slip` ss where ss.name=sd.parent and ss.employee=%s
-		and ss.docstatus=1 and sd.salary_component='TDS'""",
+        sd join `tabSalary Slip` ss where ss.name=sd.parent and ss.employee=%s
+        and ss.docstatus=1 and sd.salary_component='TDS'""",
         (employee),
     )
     return tax_paid_amount[0][0]

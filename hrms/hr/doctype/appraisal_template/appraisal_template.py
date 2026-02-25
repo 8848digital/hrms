@@ -11,6 +11,6 @@ from hrms.mixins.appraisal import AppraisalMixin
 
 
 class AppraisalTemplate(Document, AppraisalMixin):
-	def validate(self):
-		self.validate_total_weightage("goals", "KRAs")
-		self.validate_total_weightage("rating_criteria", "Criteria")
+    def validate(self):
+        self.validate_total_weightage("goals", "KRAs")
+        self.validate_total_weightage("rating_criteria", "Criteria")

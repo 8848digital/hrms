@@ -11,10 +11,10 @@ from hrms.hr.utils import validate_overlap
 
 
 class LeavePeriod(Document):
-	def validate(self):
-		self.validate_dates()
-		validate_overlap(self, self.from_date, self.to_date, self.company)
+    def validate(self):
+        self.validate_dates()
+        validate_overlap(self, self.from_date, self.to_date, self.company)
 
-	def validate_dates(self):
-		if getdate(self.from_date) >= getdate(self.to_date):
-			frappe.throw(_("To date can not be equal or less than from date"))
+    def validate_dates(self):
+        if getdate(self.from_date) >= getdate(self.to_date):
+            frappe.throw(_("To date can not be equal or less than from date"))

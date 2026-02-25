@@ -147,8 +147,8 @@ class TestLeaveAllocation(FrappeTestCase):
         # assignment created on the last day of the current month
         frappe.flags.current_date = get_last_day(getdate())
         """set end date while making assignment based on Joining date because while start date is fetched from
-		employee master, make_policy_assignment ends up taking current date as end date if not specified which
-		causes the date of assignment to be later than the end date of leave period"""
+        employee master, make_policy_assignment ends up taking current date as end date if not specified which
+        causes the date of assignment to be later than the end date of leave period"""
         start_date = self.employee.date_of_joining
         end_date = get_last_day(add_months(self.employee.date_of_joining, 12))
         leave_policy_assignments = make_policy_assignment(

@@ -275,8 +275,8 @@ class LeaveApplication(Document, PWANotificationsMixin):
     def validate_back_dated_application(self):
         future_allocation = frappe.db.sql(
             """select name, from_date from `tabLeave Allocation`
-			where employee=%s and leave_type=%s and docstatus=1 and from_date > %s
-			and carry_forward=1""",
+            where employee=%s and leave_type=%s and docstatus=1 and from_date > %s
+            and carry_forward=1""",
             (self.employee, self.leave_type, self.to_date),
             as_dict=1,
         )
@@ -371,7 +371,7 @@ class LeaveApplication(Document, PWANotificationsMixin):
         if self.docstatus == 2:
             attendance = frappe.db.sql(
                 """select name from `tabAttendance` where employee = %s\
-				and (attendance_date between %s and %s) and docstatus < 2 and status in ('On Leave', 'Half Day')""",
+                and (attendance_date between %s and %s) and docstatus < 2 and status in ('On Leave', 'Half Day')""",
                 (self.employee, self.from_date, self.to_date),
                 as_dict=1,
             )
@@ -384,11 +384,11 @@ class LeaveApplication(Document, PWANotificationsMixin):
 
         last_processed_pay_slip = frappe.db.sql(
             """
-			select start_date, end_date from `tabSalary Slip`
-			where docstatus = 1 and employee = %s
-			and ((%s between start_date and end_date) or (%s between start_date and end_date))
-			order by modified desc limit 1
-		""",
+            select start_date, end_date from `tabSalary Slip`
+            where docstatus = 1 and employee = %s
+            and ((%s between start_date and end_date) or (%s between start_date and end_date))
+            order by modified desc limit 1
+        """,
             (self.employee, self.to_date, self.from_date),
         )
 
@@ -514,12 +514,12 @@ class LeaveApplication(Document, PWANotificationsMixin):
 
         for d in frappe.db.sql(
             """
-			select
-				name, leave_type, posting_date, from_date, to_date, total_leave_days, half_day_date
-			from `tabLeave Application`
-			where employee = %(employee)s and docstatus < 2 and status in ('Open', 'Approved')
-			and to_date >= %(from_date)s and from_date <= %(to_date)s
-			and name != %(name)s""",
+            select
+                name, leave_type, posting_date, from_date, to_date, total_leave_days, half_day_date
+            from `tabLeave Application`
+            where employee = %(employee)s and docstatus < 2 and status in ('Open', 'Approved')
+            and to_date >= %(from_date)s and from_date <= %(to_date)s
+            and name != %(name)s""",
             {
                 "employee": self.employee,
                 "from_date": self.from_date,
@@ -559,12 +559,12 @@ class LeaveApplication(Document, PWANotificationsMixin):
     def get_total_leaves_on_half_day(self):
         leave_count_on_half_day_date = frappe.db.sql(
             """select count(name) from `tabLeave Application`
-			where employee = %(employee)s
-			and docstatus < 2
-			and status in ('Open', 'Approved')
-			and half_day = 1
-			and half_day_date = %(half_day_date)s
-			and name != %(name)s""",
+            where employee = %(employee)s
+            and docstatus < 2
+            and status in ('Open', 'Approved')
+            and half_day = 1
+            and half_day_date = %(half_day_date)s
+            and name != %(name)s""",
             {
                 "employee": self.employee,
                 "half_day_date": self.half_day_date,
@@ -1432,18 +1432,18 @@ def get_leave_entries(employee, leave_type, from_date, to_date):
     """Returns leave entries between from_date and to_date."""
     return frappe.db.sql(
         """
-		SELECT
-			employee, leave_type, from_date, to_date, leaves, transaction_name, transaction_type, holiday_list,
-			is_carry_forward, is_expired
-		FROM `tabLeave Ledger Entry`
-		WHERE employee=%(employee)s AND leave_type=%(leave_type)s
-			AND docstatus=1
-			AND (leaves<0
-				OR is_expired=1)
-			AND (from_date between %(from_date)s AND %(to_date)s
-				OR to_date between %(from_date)s AND %(to_date)s
-				OR (from_date < %(from_date)s AND to_date > %(to_date)s))
-	""",
+        SELECT
+            employee, leave_type, from_date, to_date, leaves, transaction_name, transaction_type, holiday_list,
+            is_carry_forward, is_expired
+        FROM `tabLeave Ledger Entry`
+        WHERE employee=%(employee)s AND leave_type=%(leave_type)s
+            AND docstatus=1
+            AND (leaves<0
+                OR is_expired=1)
+            AND (from_date between %(from_date)s AND %(to_date)s
+                OR to_date between %(from_date)s AND %(to_date)s
+                OR (from_date < %(from_date)s AND to_date > %(to_date)s))
+    """,
         {
             "from_date": from_date,
             "to_date": to_date,
@@ -1462,8 +1462,8 @@ def get_holidays(employee, from_date, to_date, holiday_list=None):
 
     holidays = frappe.db.sql(
         """select count(distinct holiday_date) from `tabHoliday` h1, `tabHoliday List` h2
-		where h1.parent = h2.name and h1.holiday_date between %s and %s
-		and h2.name = %s""",
+        where h1.parent = h2.name and h1.holiday_date between %s and %s
+        and h2.name = %s""",
         (from_date, to_date, holiday_list),
     )[0][0]
 
@@ -1594,7 +1594,7 @@ def add_holidays(events, start, end, employee, company):
 
     for holiday in frappe.db.sql(
         """select name, holiday_date, description
-		from `tabHoliday` where parent=%s and holiday_date between %s and %s""",
+        from `tabHoliday` where parent=%s and holiday_date between %s and %s""",
         (applicable_holiday_list, start, end),
         as_dict=True,
     ):

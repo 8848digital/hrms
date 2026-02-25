@@ -156,7 +156,7 @@ class LeavePolicyAssignment(Document):
         precision = get_field_precision(
             frappe.get_meta("Leave Allocation").get_field("new_leaves_allocated")
         )
-		current_date = getdate(frappe.flags.current_date) or getdate()
+        current_date = getdate(frappe.flags.current_date) or getdate()
         
         # Earned Leaves and Compensatory Leaves are allocated by scheduler, initially allocate 0
         if leave_details.is_compensatory:

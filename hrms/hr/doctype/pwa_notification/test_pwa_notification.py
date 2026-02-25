@@ -6,4 +6,4 @@ from frappe.tests.utils import FrappeTestCase
 
 
 class TestPWANotification(FrappeTestCase):
-	pass
+    pass

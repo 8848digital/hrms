@@ -157,14 +157,14 @@ class TestPayrollEntry(FrappeTestCase):
 
         payment_entry = frappe.db.sql(
             """
-			select
-				ifnull(sum(je.total_debit),0) as total_debit,
-				ifnull(sum(je.total_credit),0) as total_credit
-			from `tabJournal Entry` je, `tabJournal Entry Account` jea
-			where je.name = jea.parent
-				and je.voucher_type = 'Bank Entry'
-				and jea.reference_name = %s
-			""",
+            select
+                ifnull(sum(je.total_debit),0) as total_debit,
+                ifnull(sum(je.total_credit),0) as total_credit
+            from `tabJournal Entry` je, `tabJournal Entry Account` jea
+            where je.name = jea.parent
+                and je.voucher_type = 'Bank Entry'
+                and jea.reference_name = %s
+            """,
             payroll_entry.name,
             as_dict=1,
         )
@@ -205,11 +205,11 @@ class TestPayrollEntry(FrappeTestCase):
         )
         je_entries = frappe.db.sql(
             """
-			select account, cost_center, debit, credit
-			from `tabJournal Entry Account`
-			where parent=%s
-			order by account, cost_center
-		""",
+            select account, cost_center, debit, credit
+            from `tabJournal Entry Account`
+            where parent=%s
+            order by account, cost_center
+        """,
             je,
         )
         expected_je = (
@@ -935,12 +935,12 @@ class TestPayrollEntry(FrappeTestCase):
 
         bank_entry = frappe.db.sql(
             """
-			SELECT je.total_debit, je.total_credit
-			FROM `tabJournal Entry` je
-			INNER JOIN `tabJournal Entry Account` jea ON je.name = jea.parent
-			WHERE je.voucher_type = 'Bank Entry' AND jea.reference_type = 'Payroll Entry' AND jea.reference_name = %s
-			LIMIT 1
-			""",
+            SELECT je.total_debit, je.total_credit
+            FROM `tabJournal Entry` je
+            INNER JOIN `tabJournal Entry Account` jea ON je.name = jea.parent
+            WHERE je.voucher_type = 'Bank Entry' AND jea.reference_type = 'Payroll Entry' AND jea.reference_name = %s
+            LIMIT 1
+            """,
             payroll_entry.name,
             as_dict=True,
         )

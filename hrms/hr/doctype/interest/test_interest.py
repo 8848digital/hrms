@@ -7,4 +7,4 @@ from frappe.tests.utils import FrappeTestCase
 
 
 class TestInterest(FrappeTestCase):
-	pass
+    pass

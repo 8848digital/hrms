@@ -204,15 +204,15 @@ class EmployeeAdvance(Document):
         claimed_amount = (
             frappe.db.sql(
                 """
-			SELECT sum(ifnull(allocated_amount, 0))
-			FROM `tabExpense Claim Advance` eca, `tabExpense Claim` ec
-			WHERE
-				eca.employee_advance = %s
-				AND ec.approval_status="Approved"
-				AND ec.name = eca.parent
-				AND ec.docstatus=1
-				AND eca.allocated_amount > 0
-		""",
+            SELECT sum(ifnull(allocated_amount, 0))
+            FROM `tabExpense Claim Advance` eca, `tabExpense Claim` ec
+            WHERE
+                eca.employee_advance = %s
+                AND ec.approval_status="Approved"
+                AND ec.name = eca.parent
+                AND ec.docstatus=1
+                AND eca.allocated_amount > 0
+        """,
                 self.name,
             )[0][0]
             or 0
