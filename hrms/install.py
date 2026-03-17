@@ -19,3 +19,9 @@ def after_install():
             fg="bright_red",
         )
         raise e
+
+def before_install():
+    frappe.db.sql("""DELETE FROM "tabDocField"
+        WHERE options='Document Status Update'""")
+
+    frappe.db.commit()

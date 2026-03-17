@@ -37,10 +37,6 @@ from hrms.hr.utils import validate_active_employee
 from hrms.payroll.doctype.additional_salary.additional_salary import (
     get_additional_salaries,
 )
-from hrms.payroll.doctype.employee_benefit_ledger.employee_benefit_ledger import (
-    create_employee_benefit_ledger_entry,
-    delete_employee_benefit_ledger_entry,
-)
 from hrms.payroll.doctype.payroll_entry.payroll_entry import (
     get_salary_withholdings,
     get_start_end_dates,
@@ -242,7 +238,6 @@ class SalarySlip(TransactionBase):
                     self.email_salary_slip()
 
         self.update_payment_status_for_gratuity_and_leave_encashment()
-        self.create_benefits_ledger_entry()
 
     def update_payment_status_for_gratuity_and_leave_encashment(self):
         additional_salary_docs = frappe.db.get_all(
@@ -271,21 +266,10 @@ class SalarySlip(TransactionBase):
                     status,
                 )
 
-    def create_benefits_ledger_entry(self):
-        if self.benefit_ledger_components:
-            args = {
-                "payroll_period": self.payroll_period.name,
-                "benefit_ledger_components": self.benefit_ledger_components,
-                "benefit_details_parent": self.benefit_details_parent,
-                "benefit_details_doctype": self.benefit_details_doctype,
-            }
-            create_employee_benefit_ledger_entry(self, args)
-
     def on_cancel(self):
         self.set_status()
         self.update_status()
         self.update_payment_status_for_gratuity_and_leave_encashment()
-        delete_employee_benefit_ledger_entry("salary_slip", self.name)
 
         cancel_loan_repayment_entry(self)
         self.publish_update()
