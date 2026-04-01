@@ -640,6 +640,7 @@ def get_user_types_data():
                 "Employee Advance": ["read", "write", "create", "delete"],
                 # leave and attendance
                 "Leave Application": ["read", "write", "create", "delete"],
+                "Leave Type": ["read"],
                 "Attendance Request": ["read", "write", "create", "delete"],
                 "Compensatory Leave Request": ["read", "write", "create", "delete"],
                 # tax

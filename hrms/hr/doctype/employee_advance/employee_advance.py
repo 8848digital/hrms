@@ -77,16 +77,19 @@ class EmployeeAdvance(Document):
             frappe.throw(_("Exchange Rate cannot be zero."))
 
     def validate_advance_account_type(self):
+        if not self.advance_account:
+            return
         account_type = frappe.db.get_value(
             "Account", self.advance_account, "account_type"
         )
-        if account_type != "Receivable":
-            frappe.throw(
-                _("Employee advance account {0} should be of type {1}.").format(
-                    get_link_to_form("Account", self.advance_account),
-                    frappe.bold(_("Receivable")),
+
+        if not account_type or (account_type != "Receivable"):
+                frappe.throw(
+                    _("Employee advance account {0} should be of type {1}.").format(
+                        get_link_to_form("Account", self.advance_account),
+                        frappe.bold(_("Receivable")),
+                    )
                 )
-            )
 
     def set_status(self, update=False):
         precision = self.precision("paid_amount")
