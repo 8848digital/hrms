@@ -4,7 +4,8 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase, if_app_installed
 from frappe.utils import add_days, today
-
+from frappe.tests import IntegrationTestCase
+from frappe.utils import add_days, now_datetime, today
 from erpnext.setup.doctype.employee.test_employee import make_employee
 from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import make_purchase_receipt
 
@@ -88,8 +89,7 @@ def create_asset_movement(employee):
     movement = frappe.new_doc("Asset Movement")
     movement.company = "_Test Company"
     movement.purpose = "Issue"
-    movement.transaction_date = today()
-
+    movement.transaction_date = now_datetime()
     movement.append("assets", {"asset": asset_name, "to_employee": employee})
 
     movement.save()

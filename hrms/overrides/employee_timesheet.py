@@ -2,7 +2,7 @@
 # License: GNU General Public License v3. See license.txt
 
 from projects.projects.doctype.timesheet.timesheet import Timesheet
-
+from frappe.utils import flt
 
 class EmployeeTimesheet(Timesheet):
     def set_status(self):
@@ -10,6 +10,8 @@ class EmployeeTimesheet(Timesheet):
 
         if self.per_billed == 100:
             self.status = "Billed"
+        if 0.0 < flt(self.per_billed, self.precision("per_billed")) < 100.0:
+            self.status = "Partially Billed"
 
         if self.salary_slip:
             self.status = "Payslip"

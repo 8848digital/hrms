@@ -2,8 +2,8 @@
 	<Dialog :options="{ title: dialog.title, size: '4xl' }">
 		<template #body-content>
 			<div class="grid grid-cols-2 gap-6">
-				<FormControl
-					type="autocomplete"
+				<Link
+					doctype="Employee"
 					label="Employee"
 					v-model="form.employee"
 					:disabled="!!props.shiftAssignmentName"
@@ -141,7 +141,6 @@
 <script setup lang="ts">
 import { reactive, ref, computed, watch } from "vue";
 import {
-	DatePicker,
 	Dialog,
 	FormControl,
 	Dropdown,
@@ -319,7 +318,7 @@ watch(
 			Object.assign(form, formObject);
 			if (!props.selectedCell) return;
 
-			form.employee = { value: props.selectedCell.employee };
+			form.employee = props.selectedCell.employee;
 			form.start_date = props.selectedCell.date;
 			form.end_date = props.selectedCell.date;
 		}
@@ -391,13 +390,12 @@ const getShiftAssignment = (name: string) =>
 	});
 
 const employee = createResource({
-	url: "hrms.api.roster.get_values",
+	url: "frappe.client.get_value",
 	makeParams() {
-		const employee = (form.employee as { value: string }).value;
 		return {
 			doctype: "Employee",
-			name: employee,
-			fields: ["employee_name", "company", "department"],
+			fieldname: ["employee_name", "company", "department"],
+			filters: { name: form.employee },
 		};
 	},
 	onSuccess: (data: { [K in "employee_name" | "company" | "department"]: string }) => {
@@ -452,7 +450,7 @@ const insertShift = createResource({
 	url: "hrms.api.roster.insert_shift",
 	makeParams() {
 		return {
-			employee: (form.employee as { value: string }).value,
+	        employee: form.employee,
 			shift_type: form.shift_type,
 			shift_location: form.shift_location,
 			company: form.company,
@@ -491,7 +489,7 @@ const createShiftAssignmentSchedule = createResource({
 	url: "hrms.api.roster.create_shift_schedule_assignment",
 	makeParams() {
 		return {
-			employee: (form.employee as { value: string }).value,
+			employee: form.employee,
 			shift_type: form.shift_type,
 			company: form.company,
 			status: form.status,
