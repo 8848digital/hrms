@@ -22,7 +22,7 @@ class PayrollSettings(Document):
                 frappe.throw(_("Password policy for Salary Slips is not set"))
 
     def on_update(self):
-        self.toggle_rounded_total()
+        # self.toggle_rounded_total()
         frappe.clear_cache()
 
     def toggle_rounded_total(self):
