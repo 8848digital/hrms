@@ -66,23 +66,23 @@ def get_dashboard_for_employee(data):
 
 
 def get_dashboard_for_holiday_list(data):
-	data["non_standard_fieldnames"].update({"Leave Period": "optional_holiday_list"})
+    data["non_standard_fieldnames"].update({"Leave Period": "optional_holiday_list"})
 
-	data["transactions"].append({"items": ["Leave Period", "Shift Type"]})
+    data["transactions"].append({"items": ["Leave Period", "Shift Type"]})
 
-	return data
+    return data
 
 
 def get_dashboard_for_timesheet(data):
-	data["transactions"].append({"label": _("Payroll"), "items": ["Salary Slip"]})
+    data["transactions"].append({"label": _("Payroll"), "items": ["Salary Slip"]})
 
-	return data
+    return data
 
 
 def get_dashboard_for_project(data):
-	data["transactions"].append(
-		{"label": _("Claims"), "items": ["Expense Claim"]},
-	)
+    data["transactions"].append(
+        {"label": _("Claims"), "items": ["Expense Claim"]},
+    )
 
 	return data
 

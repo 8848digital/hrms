@@ -1,4 +1,13 @@
-from dateutil.relativedelta import relativedelta
+# Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
+# License: GNU General Public License v3. See license.txt
+
+
+from calendar import monthrange
+from datetime import date
+from itertools import groupby
+
+from pypika import Field
+from pypika.terms import Criterion
 
 import frappe
 from frappe.tests import IntegrationTestCase

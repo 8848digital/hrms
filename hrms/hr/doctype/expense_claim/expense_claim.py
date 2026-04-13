@@ -5,6 +5,7 @@
 import frappe
 from frappe import _
 from frappe.model.mapper import get_mapped_doc
+from frappe.model.workflow import get_workflow_name
 from frappe.query_builder.functions import Sum
 from frappe.utils import cstr, flt, get_link_to_form
 
@@ -34,6 +35,13 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		self.get("__onload").make_payment_via_journal_entry = frappe.db.get_single_value(
 			"Accounts Settings", "make_payment_via_journal_entry"
 		)
+		self.set_onload(
+			"self_expense_approval_not_allowed",
+			frappe.db.get_single_value("HR Settings", "prevent_self_expense_approval"),
+		)
+
+	def after_insert(self):
+		self.notify_approver()
 
 	def after_insert(self):
 		self.notify_approver()
@@ -47,6 +55,7 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		self.set_expense_account(validate=True)
 		self.calculate_taxes()
 		self.set_status()
+		self.validate_company_and_department()
 		if self.task and not self.project:
 			self.project = frappe.db.get_value("Task", self.task, "project")
 
@@ -82,6 +91,27 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 			self.notify_update()
 		else:
 			self.status = status
+
+	def validate_company_and_department(self):
+		if self.department:
+			company = frappe.db.get_value("Department", self.department, "company")
+			if company and self.company != company:
+				frappe.throw(
+					_("Department {0} does not belong to company: {1}").format(self.department, self.company),
+					exc=MismatchError,
+				)
+
+	def validate_for_self_approval(self):
+		self_expense_approval_not_allowed = frappe.db.get_single_value(
+			"HR Settings", "prevent_self_expense_approval"
+		)
+		employee_user = frappe.db.get_value("Employee", self.employee, "user_id")
+		if (
+			self_expense_approval_not_allowed
+			and employee_user == frappe.session.user
+			and not get_workflow_name("Expense Claim")
+		):
+			frappe.throw(_("Self-approval for Expense Claims is not allowed"))
 
 	def on_update(self):
 		share_doc_with_approver(self, self.expense_approver)
@@ -318,6 +348,7 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 
 	def validate_advances(self):
 		self.total_advance_amount = 0
+		precision = self.precision("total_advance_amount")
 
 		for d in self.get("advances"):
 			self.round_floats_in(d)
@@ -325,7 +356,7 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 			ref_doc = frappe.db.get_value(
 				"Employee Advance",
 				d.employee_advance,
-				["posting_date", "paid_amount", "claimed_amount", "advance_account"],
+				["posting_date", "paid_amount", "claimed_amount", "return_amount", "advance_account"],
 				as_dict=1,
 			)
 			d.posting_date = ref_doc.posting_date
@@ -333,7 +364,9 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 			d.advance_paid = ref_doc.paid_amount
 			d.unclaimed_amount = flt(ref_doc.paid_amount) - flt(ref_doc.claimed_amount)
 
-			if d.allocated_amount and flt(d.allocated_amount) > flt(d.unclaimed_amount):
+			if d.allocated_amount and flt(d.allocated_amount) > flt(
+				flt(d.unclaimed_amount) - flt(d.return_amount), precision
+			):
 				frappe.throw(
 					_("Row {0}# Allocated amount {1} cannot be greater than unclaimed amount {2}").format(
 						d.idx, d.allocated_amount, d.unclaimed_amount
@@ -344,7 +377,6 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 
 		if self.total_advance_amount:
 			self.round_floats_in(self, ["total_advance_amount"])
-			precision = self.precision("total_advance_amount")
 			amount_with_taxes = flt(
 				(flt(self.total_sanctioned_amount, precision) + flt(self.total_taxes_and_charges, precision)),
 				precision,
@@ -396,6 +428,8 @@ def get_total_reimbursed_amount(doc):
 
 
 def get_outstanding_amount_for_claim(claim):
+	precision = frappe.get_precision("Expense Claim", "grand_total")
+
 	if isinstance(claim, str):
 		claim = frappe.db.get_value(
 			"Expense Claim",
@@ -416,7 +450,7 @@ def get_outstanding_amount_for_claim(claim):
 		- flt(claim.total_advance_amount)
 	)
 
-	return outstanding_amt
+	return flt(outstanding_amt, precision)
 
 
 @frappe.whitelist()
@@ -497,6 +531,7 @@ def get_advances(employee, advance_id=None):
 		advance.posting_date,
 		advance.paid_amount,
 		advance.claimed_amount,
+		advance.return_amount,
 		advance.advance_account,
 	)
 
@@ -515,7 +550,7 @@ def get_advances(employee, advance_id=None):
 
 @frappe.whitelist()
 def get_expense_claim(
-	employee_name, company, employee_advance_name, posting_date, paid_amount, claimed_amount
+	employee_name, company, employee_advance_name, posting_date, paid_amount, claimed_amount, return_amount
 ):
 	default_payable_account = frappe.get_cached_value(
 		"Company", company, "default_expense_claim_payable_account"
@@ -535,7 +570,10 @@ def get_expense_claim(
 			"posting_date": posting_date,
 			"advance_paid": flt(paid_amount),
 			"unclaimed_amount": flt(paid_amount) - flt(claimed_amount),
-			"allocated_amount": flt(paid_amount) - flt(claimed_amount),
+			"allocated_amount": get_allocation_amount(
+				paid_amount=(paid_amount), claimed_amount=(claimed_amount), return_amount=(return_amount)
+			),
+			"return_amount": flt(return_amount),
 		},
 	)
 
@@ -592,3 +630,13 @@ def make_expense_claim_for_delivery_trip(source_name, target_doc=None):
 	)
 
 	return doc
+
+
+@frappe.whitelist()
+def get_allocation_amount(paid_amount=None, claimed_amount=None, return_amount=None, unclaimed_amount=None):
+	if unclaimed_amount is not None and return_amount is not None:
+		return flt(unclaimed_amount) - flt(return_amount)
+	elif paid_amount is not None and claimed_amount is not None and return_amount is not None:
+		return flt(paid_amount) - (flt(claimed_amount) + flt(return_amount))
+	else:
+		frappe.throw(_("Invalid parameters provided. Please pass the required arguments."))

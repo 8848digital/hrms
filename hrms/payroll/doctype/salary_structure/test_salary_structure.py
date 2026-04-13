@@ -2,7 +2,7 @@
 # See license.txt
 
 import frappe
-from frappe.tests import IntegrationTestCase
+from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_years, cstr, date_diff, get_first_day, nowdate
 from frappe.utils.make_random import get_random
 
@@ -243,7 +243,7 @@ def create_salary_structure_assignment(
 	if not payroll_period:
 		payroll_period = create_payroll_period(company="_Test Company")
 
-	income_tax_slab = frappe.db.get_value("Income Tax Slab", {"currency": currency})
+	income_tax_slab = frappe.db.get_value("Income Tax Slab", {"currency": currency, "docstatus": 1})
 
 	if not income_tax_slab:
 		income_tax_slab = create_tax_slab(payroll_period, allow_tax_exemption=True, currency=currency)

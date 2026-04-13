@@ -395,7 +395,8 @@ class PayrollEntry(Document):
 		if component_type == "earnings":
 			is_flexible_benefit, only_tax_impact = frappe.get_cached_value(
 				"Salary Component", item["salary_component"], ["is_flexible_benefit", "only_tax_impact"]
-			)
+						)
+		
 			if cint(is_flexible_benefit) and cint(only_tax_impact):
 				add_component_to_accrual_jv = False
 
@@ -591,7 +592,8 @@ class PayrollEntry(Document):
 				self.payroll_payable_account,
 				employee_wise_accounting_enabled,
 			)
-
+			# when party is not required, skip the validation in journal & gl entry
+			frappe.flags.party_not_required_for_receivable_payable = True
 			self.make_journal_entry(
 				accounts,
 				currencies,
@@ -604,7 +606,7 @@ class PayrollEntry(Document):
 				submitted_salary_slips=submitted_salary_slips,
 				employee_wise_accounting_enabled=employee_wise_accounting_enabled,
 			)
-
+			frappe.flags.party_not_required_for_receivable_payable = False
 	def make_journal_entry(
 		self,
 		accounts,

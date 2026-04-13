@@ -35,12 +35,16 @@ class TestEmployeeSeparation(IntegrationTestCase):
 
 
 def create_employee_separation():
-	employee = frappe.db.get_value("Employee", {"status": "Active", "company": "_Test Company"})
+	employee = frappe.db.get_value(
+		"Employee", {"status": "Active", "company": "_Test Company"}
+	)
 	separation = frappe.new_doc("Employee Separation")
 	separation.employee = employee
 	separation.boarding_begins_on = getdate()
 	separation.company = "_Test Company"
-	separation.append("activities", {"activity_name": "Deactivate Employee", "role": "HR User"})
+	separation.append(
+		"activities", {"activity_name": "Deactivate Employee", "role": "HR User"}
+	)
 	separation.boarding_status = "Pending"
 	separation.insert()
 	separation.submit()

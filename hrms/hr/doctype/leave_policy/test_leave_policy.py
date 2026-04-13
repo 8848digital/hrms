@@ -15,7 +15,8 @@ class TestLeavePolicy(IntegrationTestCase):
 			leave_type.save()
 
 		leave_policy = create_leave_policy(
-			leave_type=leave_type.name, annual_allocation=leave_type.max_leaves_allowed + 1
+			leave_type=leave_type.name,
+			annual_allocation=leave_type.max_leaves_allowed + 1,
 		)
 
 		self.assertRaises(frappe.ValidationError, leave_policy.insert)
@@ -32,6 +33,8 @@ def create_leave_policy(**args):
 				{
 					"leave_type": args.leave_type or "_Test Leave Type",
 					"annual_allocation": args.annual_allocation or 10,
+					"parentfield": "leave_policy_details",
+					"parenttype": "Leave Policy",
 				}
 			],
 		}

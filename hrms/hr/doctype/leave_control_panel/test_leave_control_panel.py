@@ -8,7 +8,9 @@ from frappe.tests import IntegrationTestCase
 
 from erpnext.setup.doctype.employee.test_employee import make_employee
 
-from hrms.hr.doctype.leave_allocation.test_leave_allocation import create_leave_allocation
+from hrms.hr.doctype.leave_allocation.test_leave_allocation import (
+	create_leave_allocation,
+)
 from hrms.hr.doctype.leave_control_panel.leave_control_panel import LeaveControlPanel
 from hrms.hr.doctype.leave_period.test_leave_period import create_leave_period
 from hrms.hr.doctype.leave_policy.test_leave_policy import create_leave_policy
@@ -30,8 +32,12 @@ class TestLeaveControlPanel(IntegrationTestCase):
 
 	@classmethod
 	def create_records(self):
-		self.leave_period = create_leave_period(date(2030, 1, 1), date(2030, 12, 31), "_Test Company")
-		self.leave_policy = create_leave_policy(leave_type="Casual Leave", annual_allocation=10)
+		self.leave_period = create_leave_period(
+			date(2030, 1, 1), date(2030, 12, 31), "_Test Company"
+		)
+		self.leave_policy = create_leave_policy(
+			leave_type="Casual Leave", annual_allocation=10
+		)
 		self.leave_policy.submit()
 
 		self.emp1 = make_employee(
@@ -72,7 +78,9 @@ class TestLeaveControlPanel(IntegrationTestCase):
 		)
 		self.assertEqual(leave_allocations[0], leave_allocations[1])
 		self.assertEqual(leave_allocations[0].leave_type, args["leave_type"])
-		self.assertEqual(leave_allocations[0].total_leaves_allocated, args["no_of_days"])
+		self.assertEqual(
+			leave_allocations[0].total_leaves_allocated, args["no_of_days"]
+		)
 		self.assertEqual(leave_allocations[0].from_date, args["from_date"])
 		self.assertEqual(leave_allocations[0].to_date, args["to_date"])
 
@@ -82,7 +90,7 @@ class TestLeaveControlPanel(IntegrationTestCase):
 			"dates_based_on": "Leave Period",
 			"leave_period": self.leave_period.name,
 			"allocate_based_on_leave_policy": 1,
-			"leave_policy": self.leave_policy,
+			"leave_policy": self.leave_policy.name,
 		}
 		lcp = LeaveControlPanel(args)
 		lcp.allocate_leave([self.emp3])
@@ -107,7 +115,7 @@ class TestLeaveControlPanel(IntegrationTestCase):
 			"dates_based_on": "Joining Date",
 			"to_date": to_date,
 			"allocate_based_on_leave_policy": 1,
-			"leave_policy": self.leave_policy,
+			"leave_policy": self.leave_policy.name,
 		}
 
 		lcp = LeaveControlPanel(arg)
@@ -138,7 +146,7 @@ class TestLeaveControlPanel(IntegrationTestCase):
 			"dates_based_on": "Leave Period",
 			"leave_period": self.leave_period.name,
 			"allocate_based_on_leave_policy": 1,
-			"leave_policy": self.leave_policy,
+			"leave_policy": self.leave_policy.name,
 		}
 		advanced_filters = [["Employee", "date_of_joining", "<", date(2030, 1, 5)]]
 		lcp = LeaveControlPanel(args)

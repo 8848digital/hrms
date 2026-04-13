@@ -31,9 +31,11 @@ def create_leave_type(**args):
 		}
 	)
 
-	if leave_type.is_ppl:
-		leave_type.fraction_of_daily_salary_per_leave = args.fraction_of_daily_salary_per_leave or 0.5
+    if leave_type.is_ppl:
+        leave_type.fraction_of_daily_salary_per_leave = (
+            args.fraction_of_daily_salary_per_leave or 0.5
+        )
 
-	leave_type.insert()
+    leave_type.insert()
 
-	return leave_type
+    return leave_type

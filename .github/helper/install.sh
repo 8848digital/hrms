@@ -47,9 +47,15 @@ sed -i 's/schedule:/# schedule:/g' Procfile
 sed -i 's/socketio:/# socketio:/g' Procfile
 sed -i 's/redis_socketio:/# redis_socketio:/g' Procfile
 
+<<<<<<< HEAD
 bench get-app "https://github.com/${frappeuser}/payments" --branch "$paymentsbranch"
 bench get-app "https://github.com/${frappeuser}/erpnext" --branch "$erpnextbranch" --resolve-deps
 bench get-app "https://github.com/${frappeuser}/lending" --branch "$lendingbranch"
+=======
+bench get-app payments --branch ${BRANCH_TO_CLONE%"-hotfix"}
+bench get-app https://github.com/frappe/erpnext --branch "$BRANCH_TO_CLONE" --resolve-deps
+bench get-app https://github.com/frappe/lending --branch ${BRANCH_TO_CLONE%"-hotfix"}
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
 bench get-app hrms "${GITHUB_WORKSPACE}"
 bench setup requirements --dev
 
@@ -58,4 +64,8 @@ CI=Yes bench build --app frappe &
 bench --site test_site reinstall --yes
 
 bench --verbose --site test_site install-app lending
+<<<<<<< HEAD
 bench --verbose --site test_site install-app hrms
+=======
+bench --verbose --site test_site install-app hrms
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d

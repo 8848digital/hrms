@@ -76,6 +76,7 @@ def get_staffing_plan_detail(designation, company, offer_date):
 			AND sp.company=%s
 			AND spd.parent = sp.name
 			AND %s between sp.from_date and sp.to_date
+		GROUP BY spd.parent, sp.from_date, sp.to_date, sp.name, spd.designation
 	""",
 		(designation, company, offer_date),
 		as_dict=1,
@@ -107,7 +108,8 @@ def make_employee(source_name, target_doc=None):
 
 
 @frappe.whitelist()
-def get_offer_acceptance_rate(company=None, department=None):
+def get_offer_acceptance_rate(company: str | None = None, department: str | None = None):
+	frappe.has_permission("Job Offer", throw=True)
 	filters = {"docstatus": 1}
 	if company:
 		filters["company"] = company

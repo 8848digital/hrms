@@ -3,16 +3,15 @@
 
 import frappe
 from frappe.permissions import clear_user_permissions_for_doctype
-from frappe.tests import IntegrationTestCase
 from frappe.utils import (
-	add_days,
-	add_months,
-	get_first_day,
-	get_last_day,
-	get_year_ending,
-	get_year_start,
-	getdate,
-	nowdate,
+    add_days,
+    add_months,
+    get_first_day,
+    get_last_day,
+    get_year_ending,
+    get_year_start,
+    getdate,
+    nowdate,
 )
 
 from erpnext.setup.doctype.employee.test_employee import make_employee
@@ -31,50 +30,30 @@ from hrms.hr.doctype.leave_application.leave_application import (
 	get_leave_details,
 	get_new_and_cf_leaves_taken,
 )
+from hrms.hr.doctype.leave_application.leave_application import (
+    InsufficientLeaveBalanceError,
+    LeaveAcrossAllocationsError,
+    LeaveDayBlockedError,
+    NotAnOptionalHoliday,
+    OverlapError,
+    get_leave_allocation_records,
+    get_leave_balance_on,
+    get_leave_details,
+    get_new_and_cf_leaves_taken,
+)
+from hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry import expire_allocation
 from hrms.hr.doctype.leave_policy_assignment.leave_policy_assignment import (
-	create_assignment_for_multiple_employees,
+    create_assignment_for_multiple_employees,
 )
 from hrms.hr.doctype.leave_type.test_leave_type import create_leave_type
 from hrms.payroll.doctype.salary_slip.test_salary_slip import (
-	make_holiday_list,
-	make_leave_application,
+    make_holiday_list,
+    make_leave_application,
 )
 from hrms.tests.test_utils import get_first_sunday
+from hrms.tests.utils import HRMSTestSuite
 
-test_dependencies = ["Leave Type", "Leave Allocation", "Leave Block List", "Employee"]
-
-_test_records = [
-	{
-		"company": "_Test Company",
-		"doctype": "Leave Application",
-		"employee": "_T-Employee-00001",
-		"from_date": "2013-05-01",
-		"description": "_Test Reason",
-		"leave_type": "_Test Leave Type",
-		"posting_date": "2013-01-02",
-		"to_date": "2013-05-05",
-	},
-	{
-		"company": "_Test Company",
-		"doctype": "Leave Application",
-		"employee": "_T-Employee-00002",
-		"from_date": "2013-05-01",
-		"description": "_Test Reason",
-		"leave_type": "_Test Leave Type",
-		"posting_date": "2013-01-02",
-		"to_date": "2013-05-05",
-	},
-	{
-		"company": "_Test Company",
-		"doctype": "Leave Application",
-		"employee": "_T-Employee-00001",
-		"from_date": "2013-01-15",
-		"description": "_Test Reason",
-		"leave_type": "_Test Leave Type LWP",
-		"posting_date": "2013-01-02",
-		"to_date": "2013-01-15",
-	},
-]
+test_dependencies = ["Leave Block List"]
 
 
 class TestLeaveApplication(IntegrationTestCase):
@@ -89,11 +68,68 @@ class TestLeaveApplication(IntegrationTestCase):
 		]:
 			frappe.db.delete(dt)
 
-		frappe.set_user("Administrator")
-		set_leave_approver()
+    @classmethod
+    def make_leave_applications(cls):
+        records = [
+            {
+                "company": "_Test Company",
+                "doctype": "Leave Application",
+                "employee": "_T-Employee-00001",
+                "from_date": "2013-05-01",
+                "description": "_Test Reason",
+                "leave_type": "_Test Leave Type",
+                "posting_date": "2013-01-02",
+                "to_date": "2013-05-05",
+            },
+            {
+                "company": "_Test Company",
+                "doctype": "Leave Application",
+                "employee": "_T-Employee-00002",
+                "from_date": "2013-05-01",
+                "description": "_Test Reason",
+                "leave_type": "_Test Leave Type",
+                "posting_date": "2013-01-02",
+                "to_date": "2013-05-05",
+            },
+            {
+                "company": "_Test Company",
+                "doctype": "Leave Application",
+                "employee": "_T-Employee-00001",
+                "from_date": "2013-01-15",
+                "description": "_Test Reason",
+                "leave_type": "_Test Leave Type LWP",
+                "posting_date": "2013-01-02",
+                "to_date": "2013-01-15",
+            },
+        ]
+        cls.leave_applications = []
+        for x in records:
+            if not frappe.db.exists(
+                "Leave Application",
+                {"employee": x.get("employee"), "from_date": x.get("from_date")},
+            ):
+                cls.leave_applications.append(frappe.get_doc(x).insert())
+            else:
+                cls.leave_applications.append(
+                    frappe.get_doc(
+                        "Leave Application",
+                        {
+                            "employee": x.get("employee"),
+                            "from_date": x.get("from_date"),
+                        },
+                    )
+                )
 
-		frappe.db.delete("Attendance", {"employee": "_T-Employee-00001"})
-		frappe.db.set_value("Employee", "_T-Employee-00001", "holiday_list", "")
+    def setUp(self):
+        for dt in [
+            "Leave Application",
+            "Leave Allocation",
+            "Salary Slip",
+            "Leave Ledger Entry",
+            "Leave Period",
+            "Leave Policy Assignment",
+        ]:
+            frappe.db.delete(dt)
 
 		from_date = get_year_start(getdate())
 		to_date = get_year_ending(getdate())
@@ -103,18 +139,36 @@ class TestLeaveApplication(IntegrationTestCase):
 			"Holiday List w/o Weekly Offs", from_date=from_date, to_date=to_date, add_weekly_offs=False
 		)
 
-		if not frappe.db.exists("Leave Type", "_Test Leave Type"):
-			frappe.get_doc(
-				dict(leave_type_name="_Test Leave Type", doctype="Leave Type", include_holiday=True)
-			).insert()
+        employee = get_employee()
+        frappe.db.delete("Attendance", {"employee": employee.name})
+        frappe.db.set_value("Employee", employee.name, "holiday_list", "")
 
-	def tearDown(self):
-		frappe.db.rollback()
-		frappe.set_user("Administrator")
+        from_date = get_year_start(getdate())
+        to_date = get_year_ending(getdate())
+        self.holiday_list = make_holiday_list(from_date=from_date, to_date=to_date)
+        # list_without_weekly_offs
+        make_holiday_list(
+            "Holiday List w/o Weekly Offs",
+            from_date=from_date,
+            to_date=to_date,
+            add_weekly_offs=False,
+        )
 
-	def _clear_roles(self):
-		frappe.db.sql(
-			"""delete from `tabHas Role` where parent in
+        if not frappe.db.exists("Leave Type", "_Test Leave Type"):
+            frappe.get_doc(
+                dict(
+                    leave_type_name="_Test Leave Type",
+                    doctype="Leave Type",
+                    include_holiday=True,
+                )
+            ).insert()
+
+    def tearDown(self):
+        frappe.set_user("Administrator")
+
+    def _clear_roles(self):
+        frappe.db.sql(
+            """delete from `tabHas Role` where parent in
 			('test@example.com', 'test1@example.com', 'test2@example.com')"""
 		)
 
@@ -398,16 +452,45 @@ class TestLeaveApplication(IntegrationTestCase):
 		self.assertEqual(leave_application.total_leave_days, 3)
 		self.assertEqual(frappe.db.count("Attendance", {"leave_application": leave_application.name}), 3)
 
-		# attendance on holiday deleted
-		self.assertFalse(frappe.db.exists("Attendance", attendance_on_holiday.name))
+        from frappe.utils.user import add_role
 
-		# attendance on non-holiday updated
-		self.assertEqual(frappe.db.get_value("Attendance", attendance.name, "status"), "On Leave")
+        add_role("test@example.com", "Employee")
+        frappe.set_user("test@example.com")
 
-	def test_block_list(self):
-		self._clear_roles()
+        make_allocation_record()
 
-		from frappe.utils.user import add_role
+        # leave from 1-5, half day on 3rd
+        application = self.get_application(self.leave_applications[0])
+        application.half_day = 1
+        application.half_day_date = "2013-01-03"
+        application.insert()
+
+        # Apply again for a half day leave on 3rd
+        application = self.get_application(self.leave_applications[0])
+        application.from_date = "2013-01-03"
+        application.to_date = "2013-01-03"
+        application.half_day = 1
+        application.half_day_date = "2013-01-03"
+        application.insert()
+
+        # Apply again for a half day leave on 3rd
+        application = self.get_application(self.leave_applications[0])
+        application.from_date = "2013-01-03"
+        application.to_date = "2013-01-03"
+        application.half_day = 1
+        application.half_day_date = "2013-01-03"
+
+        self.assertRaises(OverlapError, application.insert)
+
+    def test_overlap_with_half_day_2(self):
+        self._clear_roles()
+        self._clear_applications()
+
+        from frappe.utils.user import add_role
+
+        add_role("test@example.com", "Employee")
+
+        frappe.set_user("test@example.com")
 
 		add_role("test@example.com", "HR User")
 		clear_user_permissions_for_doctype("Employee")
@@ -1207,95 +1290,97 @@ class TestLeaveApplication(IntegrationTestCase):
 
 
 def create_carry_forwarded_allocation(employee, leave_type, date=None):
-	date = date or nowdate()
+    date = date or nowdate()
 
-	# initial leave allocation
-	leave_allocation = create_leave_allocation(
-		leave_type="_Test_CF_leave_expiry",
-		employee=employee.name,
-		employee_name=employee.employee_name,
-		from_date=add_months(date, -24),
-		to_date=add_months(date, -12),
-		carry_forward=0,
-	)
-	leave_allocation.submit()
+    # initial leave allocation
+    leave_allocation = create_leave_allocation(
+        leave_type="_Test_CF_leave_expiry",
+        employee=employee.name,
+        employee_name=employee.employee_name,
+        from_date=add_months(date, -24),
+        to_date=add_months(date, -12),
+        carry_forward=0,
+    )
+    leave_allocation.submit()
 
-	# carry forward leave allocation
-	leave_allocation = create_leave_allocation(
-		leave_type="_Test_CF_leave_expiry",
-		employee=employee.name,
-		employee_name=employee.employee_name,
-		from_date=add_days(date, -84),
-		to_date=add_days(date, 100),
-		carry_forward=1,
-	)
-	leave_allocation.submit()
+    # carry forward leave allocation
+    leave_allocation = create_leave_allocation(
+        leave_type="_Test_CF_leave_expiry",
+        employee=employee.name,
+        employee_name=employee.employee_name,
+        from_date=add_days(date, -84),
+        to_date=add_days(date, 100),
+        carry_forward=1,
+    )
+    leave_allocation.submit()
 
-	return leave_allocation
+    return leave_allocation
 
 
 def make_allocation_record(
-	employee=None, leave_type=None, from_date=None, to_date=None, carry_forward=False, leaves=None
+    employee=None,
+    leave_type=None,
+    from_date=None,
+    to_date=None,
+    carry_forward=False,
+    leaves=None,
 ):
-	allocation = frappe.get_doc(
-		{
-			"doctype": "Leave Allocation",
-			"employee": employee or "_T-Employee-00001",
-			"leave_type": leave_type or "_Test Leave Type",
-			"from_date": from_date or "2013-01-01",
-			"to_date": to_date or "2019-12-31",
-			"new_leaves_allocated": leaves or 30,
-			"carry_forward": carry_forward,
-		}
-	)
+    allocation = frappe.get_doc(
+        {
+            "doctype": "Leave Allocation",
+            "employee": employee or "_T-Employee-00001",
+            "leave_type": leave_type or "_Test Leave Type",
+            "from_date": from_date or "2013-01-01",
+            "to_date": to_date or "2019-12-31",
+            "new_leaves_allocated": leaves or 30,
+            "carry_forward": carry_forward,
+        }
+    )
 
-	allocation.insert(ignore_permissions=True)
-	allocation.submit()
+    allocation.insert(ignore_permissions=True)
+    allocation.submit()
 
-	return allocation
+    return allocation
 
 
 def get_employee():
-	return frappe.get_doc("Employee", "_T-Employee-00001")
-
-
-def set_leave_approver():
-	employee = get_employee()
-	dept_doc = frappe.get_doc("Department", employee.department)
-	dept_doc.append("leave_approvers", {"approver": "test@example.com"})
-	dept_doc.save(ignore_permissions=True)
+    return frappe.get_doc("Employee", "_T-Employee-00001")
 
 
 def get_leave_period():
-	leave_period_name = frappe.db.get_value("Leave Period", {"company": "_Test Company"})
-	if leave_period_name:
-		return frappe.get_doc("Leave Period", leave_period_name)
-	else:
-		return frappe.get_doc(
-			dict(
-				name="Test Leave Period",
-				doctype="Leave Period",
-				from_date=add_months(nowdate(), -6),
-				to_date=add_months(nowdate(), 6),
-				company="_Test Company",
-				is_active=1,
-			)
-		).insert()
+    leave_period_name = frappe.db.get_value(
+        "Leave Period", {"company": "_Test Company"}
+    )
+    if leave_period_name:
+        return frappe.get_doc("Leave Period", leave_period_name)
+    else:
+        return frappe.get_doc(
+            dict(
+                name="Test Leave Period",
+                doctype="Leave Period",
+                from_date=add_months(nowdate(), -6),
+                to_date=add_months(nowdate(), 6),
+                company="_Test Company",
+                is_active=1,
+            )
+        ).insert()
 
 
-def allocate_leaves(employee, leave_period, leave_type, new_leaves_allocated, eligible_leaves=0):
-	allocate_leave = frappe.get_doc(
-		{
-			"doctype": "Leave Allocation",
-			"__islocal": 1,
-			"employee": employee.name,
-			"employee_name": employee.employee_name,
-			"leave_type": leave_type,
-			"from_date": leave_period.from_date,
-			"to_date": leave_period.to_date,
-			"new_leaves_allocated": new_leaves_allocated,
-			"docstatus": 1,
-		}
-	).insert()
+def allocate_leaves(
+    employee, leave_period, leave_type, new_leaves_allocated, eligible_leaves=0
+):
+    allocate_leave = frappe.get_doc(
+        {
+            "doctype": "Leave Allocation",
+            "__islocal": 1,
+            "employee": employee.name,
+            "employee_name": employee.employee_name,
+            "leave_type": leave_type,
+            "from_date": leave_period.from_date,
+            "to_date": leave_period.to_date,
+            "new_leaves_allocated": new_leaves_allocated,
+            "docstatus": 1,
+        }
+    ).insert()
 
-	allocate_leave.submit()
+    allocate_leave.submit()

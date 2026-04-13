@@ -4,13 +4,26 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import DATE_FORMAT, flt, get_link_to_form, getdate, today
+from frappe.utils import DATE_FORMAT, flt, formatdate, get_link_to_form, getdate, today
+
+
+class InvalidLeaveLedgerEntry(frappe.ValidationError):
+	pass
 
 
 class LeaveLedgerEntry(Document):
 	def validate(self):
 		if getdate(self.from_date) > getdate(self.to_date):
-			frappe.throw(_("To date needs to be before from date"))
+			frappe.throw(
+				_(
+					"Leave Ledger Entry's To date needs to be after From date. Currently, From Date is {0} and To Date is {1}"
+				).format(
+					frappe.bold(formatdate(self.from_date)),
+					frappe.bold(formatdate(self.to_date)),
+				),
+				exc=InvalidLeaveLedgerEntry,
+				title=_("Invalid Leave Ledger Entry"),
+			)
 
 	def on_cancel(self):
 		# allow cancellation of expiry leaves
@@ -117,14 +130,16 @@ def get_previous_expiry_ledger_entry(ledger):
 def process_expired_allocation():
 	"""Check if a carry forwarded allocation has expired and create a expiry ledger entry
 	Case 1: carry forwarded expiry period is set for the leave type,
-	        create a separate leave expiry entry against each entry of carry forwarded and non carry forwarded leaves
+			create a separate leave expiry entry against each entry of carry forwarded and non carry forwarded leaves
 	Case 2: leave type has no specific expiry period for carry forwarded leaves
-	        and there is no carry forwarded leave allocation, create a single expiry against the remaining leaves.
+			and there is no carry forwarded leave allocation, create a single expiry against the remaining leaves.
 	"""
 
 	# fetch leave type records that has carry forwarded leaves expiry
 	leave_type_records = frappe.db.get_values(
-		"Leave Type", filters={"expire_carry_forwarded_leaves_after_days": (">", 0)}, fieldname=["name"]
+		"Leave Type",
+		filters={"expire_carry_forwarded_leaves_after_days": (">", 0)},
+		fieldname=["name"],
 	)
 
 	leave_type = [record[0] for record in leave_type_records] or [""]
@@ -193,6 +208,13 @@ def expire_allocation(allocation, expiry_date=None):
 	leaves = get_remaining_leaves(allocation)
 	expiry_date = expiry_date if expiry_date else allocation.to_date
 
+	if isinstance(allocation, str):
+		allocation = json.loads(allocation)
+		allocation = frappe.get_doc("Leave Allocation", allocation["name"])
+
+	leaves = get_remaining_leaves(allocation)
+	expiry_date = expiry_date if expiry_date else allocation.to_date
+
 	# allows expired leaves entry to be created/reverted
 	if leaves:
 		args = dict(
@@ -211,7 +233,9 @@ def expire_allocation(allocation, expiry_date=None):
 
 def expire_carried_forward_allocation(allocation):
 	"""Expires remaining leaves in the on carried forward allocation"""
-	from hrms.hr.doctype.leave_application.leave_application import get_leaves_for_period
+	from hrms.hr.doctype.leave_application.leave_application import (
+		get_leaves_for_period,
+	)
 
 	leaves_taken = get_leaves_for_period(
 		allocation.employee,

@@ -6,8 +6,12 @@ from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, add_months, get_year_ending, get_year_start, getdate
 
 from hrms.hr.doctype.attendance.attendance import mark_attendance
-from hrms.hr.doctype.attendance_request.attendance_request import OverlappingAttendanceRequestError
-from hrms.hr.doctype.leave_application.test_leave_application import make_allocation_record
+from hrms.hr.doctype.attendance_request.attendance_request import (
+	OverlappingAttendanceRequestError,
+)
+from hrms.hr.doctype.leave_application.test_leave_application import (
+	make_allocation_record,
+)
 from hrms.payroll.doctype.salary_slip.test_salary_slip import (
 	make_holiday_list,
 	make_leave_application,
@@ -29,10 +33,14 @@ class TestAttendanceRequest(IntegrationTestCase):
 		)
 
 		self.employee = get_employee()
-		frappe.db.set_value("Employee", self.employee.name, "holiday_list", self.holiday_list)
+		frappe.db.set_value(
+			"Employee", self.employee.name, "holiday_list", self.holiday_list
+		)
 
 	def test_attendance_request_overlap(self):
-		create_attendance_request(employee=self.employee.name, reason="On Duty", company="_Test Company")
+		create_attendance_request(
+			employee=self.employee.name, reason="On Duty", company="_Test Company"
+		)
 
 		today = getdate()
 		dateranges = [
@@ -53,7 +61,9 @@ class TestAttendanceRequest(IntegrationTestCase):
 		for entry in dateranges:
 			attendance_request.from_date = entry[0]
 			attendance_request.to_date = entry[1]
-			self.assertRaises(OverlappingAttendanceRequestError, attendance_request.save)
+			self.assertRaises(
+				OverlappingAttendanceRequestError, attendance_request.save
+			)
 
 		# no overlap
 		attendance_request.from_date = add_days(today, -3)
@@ -82,7 +92,9 @@ class TestAttendanceRequest(IntegrationTestCase):
 	def test_work_from_home_attendance_request(self):
 		"Test creation of Attendance from Attendance Request, work from home."
 		attendance_request = create_attendance_request(
-			employee=self.employee.name, reason="Work From Home", company="_Test Company"
+			employee=self.employee.name,
+			reason="Work From Home",
+			company="_Test Company",
 		)
 		records = self.get_attendance_records(attendance_request.name)
 
@@ -97,7 +109,9 @@ class TestAttendanceRequest(IntegrationTestCase):
 		attendance_name = mark_attendance(self.employee.name, getdate(), "Absent")
 
 		attendance_request = create_attendance_request(
-			employee=self.employee.name, reason="Work From Home", company="_Test Company"
+			employee=self.employee.name,
+			reason="Work From Home",
+			company="_Test Company",
 		)
 		prev_attendance = frappe.get_doc("Attendance", attendance_name)
 

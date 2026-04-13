@@ -6,6 +6,7 @@ from itertools import groupby
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Abs, Sum
 from frappe.utils import add_days, cint, flt, getdate
 
 from hrms.hr.doctype.leave_allocation.leave_allocation import get_previous_allocation
@@ -216,27 +217,14 @@ def get_leave_ledger_entries(from_date: str, to_date: str, employee: str, leave_
 	ledger = frappe.qb.DocType("Leave Ledger Entry")
 	return (
 		frappe.qb.from_(ledger)
-		.select(
-			ledger.employee,
-			ledger.leave_type,
-			ledger.from_date,
-			ledger.to_date,
-			ledger.leaves,
-			ledger.transaction_name,
-			ledger.transaction_type,
-			ledger.is_carry_forward,
-			ledger.is_expired,
-		)
+		.select(Sum(ledger.leaves))
 		.where(
 			(ledger.docstatus == 1)
 			& (ledger.transaction_type == "Leave Allocation")
 			& (ledger.employee == employee)
 			& (ledger.leave_type == leave_type)
-			& (
-				(ledger.from_date[from_date:to_date])
-				| (ledger.to_date[from_date:to_date])
-				| ((ledger.from_date < from_date) & (ledger.to_date > to_date))
-			)
+			& ((ledger.from_date[from_date:to_date]) | (ledger.to_date[from_date:to_date]))
+			& ((ledger.is_expired == 0) & (ledger.is_carry_forward == 0))
 		)
 	).run(as_dict=True)
 
