@@ -621,46 +621,42 @@ def update_user_type_doctype_limit(user_types=None):
 
 
 def get_user_types_data():
+	doctypes = {
+		# masters
+		"Holiday List": ["read"],
+		"Employee": ["read", "write"],
+		"Company": ["read"],
+
+		# payroll
+		"Salary Slip": ["read"],
+		"Employee Benefit Application": ["read", "write", "create", "delete"],
+
+		# expenses
+		"Expense Claim": ["read", "write", "create", "delete"],
+		"Expense Claim Type": ["read"],
+		"Employee Advance": ["read", "write", "create", "delete"],
+
+		# leave
+		"Leave Application": ["read", "write", "create", "delete"],
+		"Leave Type": ["read"],
+
+		# attendance
+		"Attendance Request": ["read", "write", "create", "delete"],
+		"Compensatory Leave Request": ["read", "write", "create", "delete"],
+	}
+
+	# Only add Timesheet if it exists
+	if frappe.db.exists("DocType", "Timesheet"):
+		doctypes["Timesheet"] = ["read", "write", "create", "delete", "submit", "cancel", "amend"]
+
 	return {
 		"Employee Self Service": {
 			"role": "Employee Self Service",
 			"apply_user_permission_on": "Employee",
 			"user_id_field": "user_id",
-			"doctypes": {
-				# masters
-				"Holiday List": ["read"],
-				"Employee": ["read", "write"],
-				"Company": ["read"],
-				# payroll
-				"Salary Slip": ["read"],
-				"Employee Benefit Application": ["read", "write", "create", "delete"],
-				# expenses
-				"Expense Claim": ["read", "write", "create", "delete"],
-				"Expense Claim Type": ["read"],
-				"Employee Advance": ["read", "write", "create", "delete"],
-				# leave and attendance
-				"Leave Application": ["read", "write", "create", "delete"],
-				"Attendance Request": ["read", "write", "create", "delete"],
-				"Compensatory Leave Request": ["read", "write", "create", "delete"],
-				# tax
-				"Employee Tax Exemption Declaration": ["read", "write", "create", "delete"],
-				"Employee Tax Exemption Proof Submission": ["read", "write", "create", "delete"],
-				# projects
-				"Timesheet": ["read", "write", "create", "delete", "submit", "cancel", "amend"],
-				# trainings
-				"Training Program": ["read"],
-				"Training Feedback": ["read", "write", "create", "delete", "submit", "cancel", "amend"],
-				# shifts
-				"Employee Checkin": ["read"],
-				"Shift Request": ["read", "write", "create", "delete", "submit", "cancel", "amend"],
-				# misc
-				"Employee Grievance": ["read", "write", "create", "delete"],
-				"Employee Referral": ["read", "write", "create", "delete"],
-				"Travel Request": ["read", "write", "create", "delete"],
-			},
+			"doctypes": doctypes,
 		}
 	}
-
 
 def get_lending_docperms_for_ess():
 	return {
@@ -696,7 +692,22 @@ def create_user_type(user_type, data):
 	if doc.role == "Employee Self Service" and "lending" in frappe.get_installed_apps():
 		docperms.update(get_lending_docperms_for_ess())
 
+	docperms = data.get("doctypes")
+
 	append_docperms_to_user_type(docperms, doc)
+
+	# Remove invalid doctypes before saving
+	valid_rows = []
+	for row in doc.user_doctypes:
+		if frappe.db.exists("DocType", row.document_type):
+			valid_rows.append(row)
+		else:
+			frappe.logger().warning(f"Skipping missing DocType: {row.document_type}")
+
+	doc.user_doctypes = valid_rows
+
+	doc.flags.ignore_links = True
+	doc.save(ignore_permissions=True)
 
 	doc.flags.ignore_links = True
 	doc.save(ignore_permissions=True)
@@ -706,10 +717,17 @@ def append_docperms_to_user_type(docperms, doc):
 	existing_doctypes = [d.document_type for d in doc.user_doctypes]
 
 	for doctype, perms in docperms.items():
+
+		# Skip doctypes that are not installed
+		if not frappe.db.exists("DocType", doctype):
+			frappe.logger().warning(f"Skipping missing DocType: {doctype}")
+			continue
+
 		if doctype in existing_doctypes:
 			continue
 
 		args = {"document_type": doctype}
+
 		for perm in perms:
 			args[perm] = 1
 

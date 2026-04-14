@@ -163,56 +163,57 @@ doc_events = {
 	"User": {
 		"validate": [
 			"erpnext.setup.doctype.employee.employee.validate_employee_role",
-			"hrms.overrides.employee_master.update_approver_user_roles",
-		],
-		"on_update": "erpnext.setup.doctype.employee.employee.update_user_permissions",
-	},
-	"Company": {
-		"validate": "hrms.overrides.company.validate_default_accounts",
-		"on_update": [
-			"hrms.overrides.company.make_company_fixtures",
-			"hrms.overrides.company.set_default_hr_accounts",
-		],
-		"on_trash": "hrms.overrides.company.handle_linked_docs",
-	},
-	"Holiday List": {
-		"on_update": "hrms.utils.holiday_list.invalidate_cache",
-		"on_trash": "hrms.utils.holiday_list.invalidate_cache",
-	},
-	"Timesheet": {"validate": "hrms.hr.utils.validate_active_employee"},
-	"Payment Entry": {
-		"on_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-		"on_cancel": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-		"on_update_after_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-	},
-	"Journal Entry": {
-		"validate": "hrms.hr.doctype.expense_claim.expense_claim.validate_expense_claim_in_jv",
-		"on_submit": [
-			"hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-			"hrms.hr.doctype.full_and_final_statement.full_and_final_statement.update_full_and_final_statement_status",
-			"hrms.payroll.doctype.salary_withholding.salary_withholding.update_salary_withholding_payment_status",
-		],
-		"on_update_after_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-		"on_cancel": [
-			"hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-			"hrms.payroll.doctype.salary_slip.salary_slip.unlink_ref_doc_from_salary_slip",
-			"hrms.hr.doctype.full_and_final_statement.full_and_final_statement.update_full_and_final_statement_status",
-			"hrms.payroll.doctype.salary_withholding.salary_withholding.update_salary_withholding_payment_status",
-		],
-	},
-	"Loan": {"validate": "hrms.hr.utils.validate_loan_repay_from_salary"},
-	"Employee": {
-		"validate": "hrms.overrides.employee_master.validate_onboarding_process",
-		"on_update": [
 			"hrms.overrides.employee_master.update_approver_role",
-			"hrms.overrides.employee_master.publish_update",
-		],
-		"after_insert": "hrms.overrides.employee_master.update_job_applicant_and_offer",
-		"on_trash": "hrms.overrides.employee_master.update_employee_transfer",
-		"after_delete": "hrms.overrides.employee_master.publish_update",
-	},
-	"Project": {"validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"},
-	"Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
+		]
+    },
+    "Company": {
+        "validate": "hrms.overrides.company.validate_default_accounts",
+        "on_update": [
+            "hrms.overrides.company.make_company_fixtures",
+            "hrms.overrides.company.set_default_hr_accounts",
+        ],
+        "on_trash": "hrms.overrides.company.handle_linked_docs",
+    },
+    "Holiday List": {
+        "on_update": "hrms.utils.holiday_list.invalidate_cache",
+        "on_trash": "hrms.utils.holiday_list.invalidate_cache",
+    },
+    "Timesheet": {"validate": "hrms.hr.utils.validate_active_employee"},
+    "Payment Entry": {
+        "on_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+        "on_cancel": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+        "on_update_after_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+    },
+    "Journal Entry": {
+        "validate": "hrms.hr.doctype.expense_claim.expense_claim.validate_expense_claim_in_jv",
+        "on_submit": [
+            "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+            "hrms.hr.doctype.full_and_final_statement.full_and_final_statement.update_full_and_final_statement_status",
+            "hrms.payroll.doctype.salary_withholding.salary_withholding.update_salary_withholding_payment_status",
+        ],
+        "on_update_after_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+        "on_cancel": [
+            "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+            "hrms.payroll.doctype.salary_slip.salary_slip.unlink_ref_doc_from_salary_slip",
+            "hrms.hr.doctype.full_and_final_statement.full_and_final_statement.update_full_and_final_statement_status",
+            "hrms.payroll.doctype.salary_withholding.salary_withholding.update_salary_withholding_payment_status",
+        ],
+    },
+    "Loan": {"validate": "hrms.hr.utils.validate_loan_repay_from_salary"},
+    "Employee": {
+        "validate": "hrms.overrides.employee_master.validate_onboarding_process",
+        "on_update": [
+            "hrms.overrides.employee_master.update_approver_role",
+            "hrms.overrides.employee_master.publish_update",
+        ],
+        "after_insert": "hrms.overrides.employee_master.update_job_applicant_and_offer",
+        "on_trash": "hrms.overrides.employee_master.update_employee_transfer",
+        "after_delete": "hrms.overrides.employee_master.publish_update",
+    },
+    "Project": {
+        "validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"
+    },
+    "Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
 }
 
 # Scheduled Tasks
