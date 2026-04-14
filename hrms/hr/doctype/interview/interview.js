@@ -126,8 +126,8 @@ frappe.ui.form.on("Interview", {
 		d.show();
 	},
 
-	show_feedback_dialog: function (frm, data) {
-		let fields = frm.events.get_fields_for_feedback();
+	show_feedback_dialog: async function (frm, data) {
+		let fields = await frm.events.get_fields_for_feedback();
 
 		let d = new frappe.ui.Dialog({
 			title: __("Submit Feedback"),

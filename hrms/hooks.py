@@ -6,6 +6,8 @@ app_email = "contact@frappe.io"
 app_license = "GNU General Public License (v3)"
 required_apps = ["frappe/erpnext"]
 source_link = "http://github.com/frappe/hrms"
+app_logo_url = "/assets/hrms/images/frappe-hr-logo.svg"
+app_home = "/app/hr"
 
 add_to_apps_screen = [
 	{
@@ -159,54 +161,59 @@ override_doctype_class = {
 
 doc_events = {
 	"User": {
-		"validate": "erpnext.setup.doctype.employee.employee.validate_employee_role",
-		"on_update": "erpnext.setup.doctype.employee.employee.update_user_permissions",
-	},
-	"Company": {
-		"validate": "hrms.overrides.company.validate_default_accounts",
-		"on_update": [
-			"hrms.overrides.company.make_company_fixtures",
-			"hrms.overrides.company.set_default_hr_accounts",
-		],
-	},
-	"Holiday List": {
-		"on_update": "hrms.utils.holiday_list.invalidate_cache",
-		"on_trash": "hrms.utils.holiday_list.invalidate_cache",
-	},
-	"Timesheet": {"validate": "hrms.hr.utils.validate_active_employee"},
-	"Payment Entry": {
-		"on_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-		"on_cancel": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-		"on_update_after_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-	},
-	"Journal Entry": {
-		"validate": "hrms.hr.doctype.expense_claim.expense_claim.validate_expense_claim_in_jv",
-		"on_submit": [
-			"hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-			"hrms.hr.doctype.full_and_final_statement.full_and_final_statement.update_full_and_final_statement_status",
-			"hrms.payroll.doctype.salary_withholding.salary_withholding.update_salary_withholding_payment_status",
-		],
-		"on_update_after_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-		"on_cancel": [
-			"hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
-			"hrms.payroll.doctype.salary_slip.salary_slip.unlink_ref_doc_from_salary_slip",
-			"hrms.hr.doctype.full_and_final_statement.full_and_final_statement.update_full_and_final_statement_status",
-			"hrms.payroll.doctype.salary_withholding.salary_withholding.update_salary_withholding_payment_status",
-		],
-	},
-	"Loan": {"validate": "hrms.hr.utils.validate_loan_repay_from_salary"},
-	"Employee": {
-		"validate": "hrms.overrides.employee_master.validate_onboarding_process",
-		"on_update": [
+		"validate": [
+			"erpnext.setup.doctype.employee.employee.validate_employee_role",
 			"hrms.overrides.employee_master.update_approver_role",
-			"hrms.overrides.employee_master.publish_update",
-		],
-		"after_insert": "hrms.overrides.employee_master.update_job_applicant_and_offer",
-		"on_trash": "hrms.overrides.employee_master.update_employee_transfer",
-		"after_delete": "hrms.overrides.employee_master.publish_update",
-	},
-	"Project": {"validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"},
-	"Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
+		]
+    },
+    "Company": {
+        "validate": "hrms.overrides.company.validate_default_accounts",
+        "on_update": [
+            "hrms.overrides.company.make_company_fixtures",
+            "hrms.overrides.company.set_default_hr_accounts",
+        ],
+        "on_trash": "hrms.overrides.company.handle_linked_docs",
+    },
+    "Holiday List": {
+        "on_update": "hrms.utils.holiday_list.invalidate_cache",
+        "on_trash": "hrms.utils.holiday_list.invalidate_cache",
+    },
+    "Timesheet": {"validate": "hrms.hr.utils.validate_active_employee"},
+    "Payment Entry": {
+        "on_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+        "on_cancel": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+        "on_update_after_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+    },
+    "Journal Entry": {
+        "validate": "hrms.hr.doctype.expense_claim.expense_claim.validate_expense_claim_in_jv",
+        "on_submit": [
+            "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+            "hrms.hr.doctype.full_and_final_statement.full_and_final_statement.update_full_and_final_statement_status",
+            "hrms.payroll.doctype.salary_withholding.salary_withholding.update_salary_withholding_payment_status",
+        ],
+        "on_update_after_submit": "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+        "on_cancel": [
+            "hrms.hr.doctype.expense_claim.expense_claim.update_payment_for_expense_claim",
+            "hrms.payroll.doctype.salary_slip.salary_slip.unlink_ref_doc_from_salary_slip",
+            "hrms.hr.doctype.full_and_final_statement.full_and_final_statement.update_full_and_final_statement_status",
+            "hrms.payroll.doctype.salary_withholding.salary_withholding.update_salary_withholding_payment_status",
+        ],
+    },
+    "Loan": {"validate": "hrms.hr.utils.validate_loan_repay_from_salary"},
+    "Employee": {
+        "validate": "hrms.overrides.employee_master.validate_onboarding_process",
+        "on_update": [
+            "hrms.overrides.employee_master.update_approver_role",
+            "hrms.overrides.employee_master.publish_update",
+        ],
+        "after_insert": "hrms.overrides.employee_master.update_job_applicant_and_offer",
+        "on_trash": "hrms.overrides.employee_master.update_employee_transfer",
+        "after_delete": "hrms.overrides.employee_master.publish_update",
+    },
+    "Project": {
+        "validate": "hrms.controllers.employee_boarding_controller.update_employee_boarding_status"
+    },
+    "Task": {"on_update": "hrms.controllers.employee_boarding_controller.update_task"},
 }
 
 # Scheduled Tasks
@@ -220,8 +227,9 @@ scheduler_events = {
 		"hrms.hr.doctype.daily_work_summary_group.daily_work_summary_group.trigger_emails",
 	],
 	"hourly_long": [
+		"hrms.hr.doctype.shift_type.shift_type.update_last_sync_of_checkin",
 		"hrms.hr.doctype.shift_type.shift_type.process_auto_attendance_for_all_shifts",
-		"hrms.hr.doctype.shift_assignment_schedule.shift_assignment_schedule.process_auto_shift_creation",
+		"hrms.hr.doctype.shift_schedule_assignment.shift_schedule_assignment.process_auto_shift_creation",
 	],
 	"daily": [
 		"hrms.controllers.employee_reminders.send_birthday_reminders",
@@ -239,7 +247,7 @@ scheduler_events = {
 	"monthly": ["hrms.controllers.employee_reminders.send_reminders_in_advance_monthly"],
 }
 
-advance_payment_doctypes = ["Gratuity", "Employee Advance"]
+advance_payment_doctypes = ["Leave Encashment", "Gratuity", "Employee Advance"]
 
 invoice_doctypes = ["Expense Claim"]
 
@@ -250,6 +258,7 @@ accounting_dimension_doctypes = [
 	"Expense Claim Detail",
 	"Expense Taxes and Charges",
 	"Payroll Entry",
+	"Leave Encashment",
 ]
 
 bank_reconciliation_doctypes = ["Expense Claim"]
@@ -269,6 +278,7 @@ regional_overrides = {
 	"India": {
 		"hrms.hr.utils.calculate_annual_eligible_hra_exemption": "hrms.regional.india.utils.calculate_annual_eligible_hra_exemption",
 		"hrms.hr.utils.calculate_hra_exemption_for_period": "hrms.regional.india.utils.calculate_hra_exemption_for_period",
+		"hrms.hr.utils.calculate_tax_with_marginal_relief": "hrms.regional.india.utils.calculate_tax_with_marginal_relief",
 	},
 }
 
@@ -347,3 +357,15 @@ ignore_links_on_delete = ["PWA Notification"]
 # Recommended only for DocTypes which have limited documents with untranslated names
 # For example: Role, Gender, etc.
 # translated_search_doctypes = []
+
+company_data_to_be_ignored = [
+	"Salary Component Account",
+	"Salary Structure",
+	"Salary Structure Assignment",
+	"Payroll Period",
+	"Income Tax Slab",
+	"Leave Period",
+	"Leave Policy Assignment",
+	"Employee Onboarding Template",
+	"Employee Separation Template",
+]

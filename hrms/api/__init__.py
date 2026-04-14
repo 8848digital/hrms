@@ -61,7 +61,7 @@ def get_current_employee_info() -> dict:
 
 @frappe.whitelist()
 def get_all_employees() -> list[dict]:
-	return frappe.get_all(
+	return frappe.get_list(
 		"Employee",
 		fields=[
 			"name",
@@ -76,6 +76,13 @@ def get_all_employees() -> list[dict]:
 		],
 		limit=999999,
 	)
+
+
+def get_current_employee() -> str:
+	employee = get_current_employee_info().get("name")
+	if not employee:
+		frappe.throw(_("Employee not found"), frappe.PermissionError)
+	return employee
 
 
 # HR Settings
@@ -119,7 +126,8 @@ def are_push_notifications_enabled() -> bool:
 
 # Attendance
 @frappe.whitelist()
-def get_attendance_calendar_events(employee: str, from_date: str, to_date: str) -> dict[str, str]:
+def get_attendance_calendar_events(from_date: str, to_date: str) -> dict[str, str]:
+	employee = get_current_employee()
 	holidays = get_holidays_for_calendar(employee, from_date, to_date)
 	attendance = get_attendance_for_calendar(employee, from_date, to_date)
 	events = {}
@@ -127,10 +135,10 @@ def get_attendance_calendar_events(employee: str, from_date: str, to_date: str) 
 	date = getdate(from_date)
 	while date_diff(to_date, date) >= 0:
 		date_str = date.strftime("%Y-%m-%d")
-		if date in holidays:
-			events[date_str] = "Holiday"
-		elif date in attendance:
+		if date in attendance:
 			events[date_str] = attendance[date]
+		elif date in holidays:
+			events[date_str] = "Holiday"
 		date = add_days(date, 1)
 
 	return events
@@ -139,7 +147,7 @@ def get_attendance_calendar_events(employee: str, from_date: str, to_date: str) 
 def get_attendance_for_calendar(employee: str, from_date: str, to_date: str) -> list[dict[str, str]]:
 	attendance = frappe.get_all(
 		"Attendance",
-		{"employee": employee, "attendance_date": ["between", [from_date, to_date]]},
+		{"employee": employee, "attendance_date": ["between", [from_date, to_date]], "docstatus": 1},
 		["attendance_date", "status"],
 	)
 	return {d["attendance_date"]: d["status"] for d in attendance}
@@ -195,6 +203,44 @@ def get_shift_requests(
 	return shift_requests
 
 
+@frappe.whitelist()
+def get_attendance_requests(
+	employee: str,
+	for_approval: bool = False,
+	limit: int | None = None,
+) -> list[dict]:
+	filters = get_filters("Attendance Request", employee, None, for_approval)
+	fields = [
+		"name",
+		"reason",
+		"employee",
+		"employee_name",
+		"from_date",
+		"to_date",
+		"include_holidays",
+		"shift",
+		"docstatus",
+		"creation",
+	]
+
+	if workflow_state_field := get_workflow_state_field("Attendance Request"):
+		fields.append(workflow_state_field)
+
+	attendance_requests = frappe.get_list(
+		"Attendance Request",
+		fields=fields,
+		filters=filters,
+		order_by="creation desc",
+		limit=limit,
+	)
+
+	if workflow_state_field:
+		for application in attendance_requests:
+			application["workflow_state_field"] = workflow_state_field
+
+	return attendance_requests
+
+
 def get_filters(
 	doctype: str,
 	employee: str,
@@ -209,14 +255,15 @@ def get_filters(
 		if workflow := get_workflow(doctype):
 			allowed_states = get_allowed_states_for_workflow(workflow, approver_id)
 			filters[workflow.workflow_state_field] = ("in", allowed_states)
-		else:
+		elif doctype != "Attendance Request":
 			approver_field_map = {
 				"Shift Request": "approver",
 				"Leave Application": "leave_approver",
 				"Expense Claim": "expense_approver",
 			}
 			filters.status = "Open" if doctype == "Leave Application" else "Draft"
-			filters[approver_field_map[doctype]] = approver_id
+			if approver_id:
+				filters[approver_field_map[doctype]] = approver_id
 	else:
 		filters.docstatus = ("!=", 2)
 		filters.employee = employee
@@ -255,7 +302,8 @@ def get_shift_request_approvers(employee: str) -> str | list[str]:
 
 
 @frappe.whitelist()
-def get_shifts(employee: str) -> list[dict[str, str]]:
+def get_shifts() -> list[dict[str, str]]:
+	employee = get_current_employee()
 	ShiftAssignment = frappe.qb.DocType("Shift Assignment")
 	ShiftType = frappe.qb.DocType("Shift Type")
 	return (
@@ -326,7 +374,7 @@ def get_leave_applications(
 
 
 @frappe.whitelist()
-def get_leave_balance_map(employee: str) -> dict[str, dict[str, float]]:
+def get_leave_balance_map() -> dict[str, dict[str, float]]:
 	"""
 	Returns a map of leave type and balance details like:
 	{
@@ -335,6 +383,8 @@ def get_leave_balance_map(employee: str) -> dict[str, dict[str, float]]:
 	}
 	"""
 	from hrms.hr.doctype.leave_application.leave_application import get_leave_details
+
+	employee = get_current_employee()
 
 	date = getdate()
 	leave_map = {}
@@ -487,7 +537,9 @@ def get_expense_claims(
 
 
 @frappe.whitelist()
-def get_expense_claim_summary(employee: str) -> dict:
+def get_expense_claim_summary() -> dict:
+	employee = get_current_employee()
+
 	from frappe.query_builder.functions import Sum
 
 	Claim = frappe.qb.DocType("Expense Claim")
@@ -504,10 +556,13 @@ def get_expense_claim_summary(employee: str) -> dict:
 	)
 	sum_approved_claims = Sum(approved_claims_case).as_("total_approved_amount")
 
+	approved_total_claimed_case = (
+		frappe.qb.terms.Case().when(Claim.approval_status == "Approved", Claim.total_claimed_amount).else_(0)
+	)
+	sum_approved_total_claimed = Sum(approved_total_claimed_case).as_("total_claimed_in_approved")
+
 	rejected_claims_case = (
-		frappe.qb.terms.Case()
-		.when(Claim.approval_status == "Rejected", Claim.total_sanctioned_amount)
-		.else_(0)
+		frappe.qb.terms.Case().when(Claim.approval_status == "Rejected", Claim.total_claimed_amount).else_(0)
 	)
 	sum_rejected_claims = Sum(rejected_claims_case).as_("total_rejected_amount")
 
@@ -517,6 +572,7 @@ def get_expense_claim_summary(employee: str) -> dict:
 			sum_pending_claims,
 			sum_approved_claims,
 			sum_rejected_claims,
+			sum_approved_total_claimed,
 			Claim.company,
 		)
 		.where((Claim.docstatus != 2) & (Claim.employee == employee))
@@ -571,7 +627,8 @@ def get_expense_approval_details(employee: str) -> dict:
 
 # Employee Advance
 @frappe.whitelist()
-def get_employee_advance_balance(employee: str) -> list[dict]:
+def get_employee_advance_balance() -> list[dict]:
+	employee = get_current_employee()
 	Advance = frappe.qb.DocType("Employee Advance")
 
 	advances = (
@@ -662,9 +719,11 @@ def get_doctype_states(doctype: str) -> dict:
 # File
 @frappe.whitelist()
 def get_attachments(dt: str, dn: str):
-	from frappe.desk.form.load import get_attachments
-
-	return get_attachments(dt, dn)
+	return frappe.get_list(
+		"File",
+		fields=["name", "file_name", "file_url", "is_private"],
+		filters={"attached_to_name": str(dn), "attached_to_doctype": dt},
+	)
 
 
 @frappe.whitelist()

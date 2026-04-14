@@ -2,7 +2,7 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase, change_settings
+from frappe.tests import IntegrationTestCase, change_settings
 from frappe.utils import add_days, nowdate
 
 from erpnext.setup.doctype.employee.test_employee import make_employee
@@ -13,7 +13,7 @@ from hrms.hr.doctype.shift_type.test_shift_type import setup_shift_type
 test_dependencies = ["Shift Type"]
 
 
-class TestShiftRequest(FrappeTestCase):
+class TestShiftRequest(IntegrationTestCase):
 	def setUp(self):
 		for doctype in ["Shift Request", "Shift Assignment", "Shift Type"]:
 			frappe.db.delete(doctype)
@@ -43,7 +43,9 @@ class TestShiftRequest(FrappeTestCase):
 		shift_request.cancel()
 
 		shift_assignment_docstatus = frappe.db.get_value(
-			"Shift Assignment", filters={"shift_request": shift_request.name}, fieldname="docstatus"
+			"Shift Assignment",
+			filters={"shift_request": shift_request.name},
+			fieldname="docstatus",
 		)
 		self.assertEqual(shift_assignment_docstatus, 2)
 		self.assertEqual(shift_request.docstatus, 2)
@@ -60,7 +62,9 @@ class TestShiftRequest(FrappeTestCase):
 		employee.save()
 
 		shift_request = make_shift_request(user, do_not_submit=True)
-		self.assertTrue(shift_request.name in frappe.share.get_shared("Shift Request", user))
+		self.assertTrue(
+			shift_request.name in frappe.share.get_shared("Shift Request", user)
+		)
 
 		# check shared doc revoked
 		shift_request.reload()
@@ -72,7 +76,9 @@ class TestShiftRequest(FrappeTestCase):
 		)[0][0]
 		shift_request.approver = department_approver
 		shift_request.save()
-		self.assertTrue(shift_request.name not in frappe.share.get_shared("Shift Request", user))
+		self.assertTrue(
+			shift_request.name not in frappe.share.get_shared("Shift Request", user)
+		)
 
 		shift_request.reload()
 		shift_request.approver = user
@@ -92,7 +98,9 @@ class TestShiftRequest(FrappeTestCase):
 	def test_overlap_for_request_without_to_date(self):
 		# shift should be Ongoing if Only from_date is present
 		user = "test_shift_request@example.com"
-		employee = make_employee(user, company="_Test Company", shift_request_approver=user)
+		employee = make_employee(
+			user, company="_Test Company", shift_request_approver=user
+		)
 		setup_shift_type(shift_type="Day Shift")
 
 		shift_request = frappe.get_doc(
@@ -123,7 +131,9 @@ class TestShiftRequest(FrappeTestCase):
 
 	def test_overlap_for_request_with_from_and_to_dates(self):
 		user = "test_shift_request@example.com"
-		employee = make_employee(user, company="_Test Company", shift_request_approver=user)
+		employee = make_employee(
+			user, company="_Test Company", shift_request_approver=user
+		)
 		setup_shift_type(shift_type="Day Shift")
 
 		shift_request = frappe.get_doc(
@@ -156,10 +166,14 @@ class TestShiftRequest(FrappeTestCase):
 
 	def test_overlapping_for_a_fixed_period_shift_and_ongoing_shift(self):
 		user = "test_shift_request@example.com"
-		employee = make_employee(user, company="_Test Company", shift_request_approver=user)
+		employee = make_employee(
+			user, company="_Test Company", shift_request_approver=user
+		)
 
 		# shift setup for 8-12
-		shift_type = setup_shift_type(shift_type="Shift 1", start_time="08:00:00", end_time="12:00:00")
+		shift_type = setup_shift_type(
+			shift_type="Shift 1", start_time="08:00:00", end_time="12:00:00"
+		)
 		date = nowdate()
 
 		# shift with end date
@@ -177,7 +191,9 @@ class TestShiftRequest(FrappeTestCase):
 		).submit()
 
 		# shift setup for 11-15
-		shift_type = setup_shift_type(shift_type="Shift 2", start_time="11:00:00", end_time="15:00:00")
+		shift_type = setup_shift_type(
+			shift_type="Shift 2", start_time="11:00:00", end_time="15:00:00"
+		)
 		shift2 = frappe.get_doc(
 			{
 				"doctype": "Shift Request",
@@ -198,7 +214,9 @@ class TestShiftRequest(FrappeTestCase):
 		employee = make_employee(user, company="_Test Company", shift_request_approver=user)
 
 		# shift setup for 8-12
-		shift_type = setup_shift_type(shift_type="Shift 1", start_time="08:00:00", end_time="12:00:00")
+		shift_type = setup_shift_type(
+			shift_type="Shift 1", start_time="08:00:00", end_time="12:00:00"
+		)
 		date = nowdate()
 
 		# shift with end date
@@ -216,7 +234,9 @@ class TestShiftRequest(FrappeTestCase):
 		).submit()
 
 		# shift setup for 13-15
-		shift_type = setup_shift_type(shift_type="Shift 2", start_time="13:00:00", end_time="15:00:00")
+		shift_type = setup_shift_type(
+			shift_type="Shift 2", start_time="13:00:00", end_time="15:00:00"
+		)
 		frappe.get_doc(
 			{
 				"doctype": "Shift Request",
@@ -249,6 +269,20 @@ def make_shift_request(
 	from_date = from_date or nowdate()
 	to_date = to_date or add_days(nowdate(), 10)
 	approver = approver or frappe.db.get_value("Employee", employee, "shift_request_approver")
+
+	shift_request = frappe.get_doc(
+		{
+			"doctype": "Shift Request",
+			"shift_type": "Day Shift",
+			"company": "_Test Company",
+			"employee": employee,
+			"employee_name": employee_name,
+			"from_date": from_date,
+			"to_date": to_date,
+			"approver": approver,
+			"status": status,
+		}
+	).insert()
 
 	shift_request = frappe.get_doc(
 		{

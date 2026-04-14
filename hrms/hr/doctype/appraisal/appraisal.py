@@ -15,9 +15,6 @@ from hrms.payroll.utils import sanitize_expression
 
 class Appraisal(Document, AppraisalMixin):
 	def validate(self):
-		if not self.status:
-			self.status = "Draft"
-
 		self.set_kra_evaluation_method()
 
 		validate_active_employee(self.employee)
@@ -32,7 +29,6 @@ class Appraisal(Document, AppraisalMixin):
 		self.calculate_final_score()
 
 	def validate_duplicate(self):
-		frappe.log_error("Hello")
 		Appraisal = frappe.qb.DocType("Appraisal")
 		duplicate = (
 			frappe.qb.from_(Appraisal)
@@ -131,12 +127,15 @@ class Appraisal(Document, AppraisalMixin):
 
 	def calculate_total_score(self):
 		total_weightage, total, goal_score_percentage = 0, 0, 0
-
+		meta = frappe.get_meta("Appraisal Goal")
+		number_of_stars = meta.get_options("score") or 5
 		if self.rate_goals_manually:
 			table = _("Goals")
 			for entry in self.goals:
-				if flt(entry.score) > 5:
-					frappe.throw(_("Row {0}: Goal Score cannot be greater than 5").format(entry.idx))
+				if flt(entry.score) > flt(number_of_stars):
+					frappe.throw(
+						_("Row {0}: Goal Score cannot be greater than {1}").format(entry.idx, number_of_stars)
+					)
 
 				entry.score_earned = flt(entry.score) * flt(entry.per_weightage) / 100
 				total += flt(entry.score_earned)
@@ -164,8 +163,10 @@ class Appraisal(Document, AppraisalMixin):
 
 	def calculate_self_appraisal_score(self):
 		total = 0
+		meta = frappe.get_meta("Employee Feedback Rating")
+		number_of_stars = meta.get_options("rating") or 5
 		for entry in self.self_ratings:
-			score = flt(entry.rating) * 5 * flt(entry.per_weightage / 100)
+			score = flt(entry.rating) * flt(number_of_stars) * flt(entry.per_weightage / 100)
 			total += flt(score)
 
 		self.self_score = flt(total, self.precision("self_score"))

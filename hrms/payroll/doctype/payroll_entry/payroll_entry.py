@@ -340,7 +340,14 @@ class PayrollEntry(Document):
 					ss.salary_structure,
 					ss.employee,
 				)
-				.where((ssd.parentfield == component_type) & (ss.name.isin([d.name for d in salary_slips])))
+				.where(
+					(ssd.parentfield == component_type)
+					& (ss.name.isin([d.name for d in salary_slips]))
+					& (
+						(ssd.do_not_include_in_total == 0)
+						| ((ssd.do_not_include_in_total == 1) & (ssd.do_not_include_in_accounts == 0))
+					)
+				)
 			).run(as_dict=True)
 
 			return salary_components
@@ -388,7 +395,8 @@ class PayrollEntry(Document):
 		if component_type == "earnings":
 			is_flexible_benefit, only_tax_impact = frappe.get_cached_value(
 				"Salary Component", item["salary_component"], ["is_flexible_benefit", "only_tax_impact"]
-			)
+						)
+		
 			if cint(is_flexible_benefit) and cint(only_tax_impact):
 				add_component_to_accrual_jv = False
 
@@ -584,7 +592,8 @@ class PayrollEntry(Document):
 				self.payroll_payable_account,
 				employee_wise_accounting_enabled,
 			)
-
+			# when party is not required, skip the validation in journal & gl entry
+			frappe.flags.party_not_required_for_receivable_payable = True
 			self.make_journal_entry(
 				accounts,
 				currencies,
@@ -595,8 +604,9 @@ class PayrollEntry(Document):
 				),
 				submit_journal_entry=True,
 				submitted_salary_slips=submitted_salary_slips,
+				employee_wise_accounting_enabled=employee_wise_accounting_enabled,
 			)
-
+			frappe.flags.party_not_required_for_receivable_payable = False
 	def make_journal_entry(
 		self,
 		accounts,
@@ -606,6 +616,7 @@ class PayrollEntry(Document):
 		user_remark="",
 		submitted_salary_slips: list | None = None,
 		submit_journal_entry=False,
+		employee_wise_accounting_enabled=False,
 	) -> str:
 		multi_currency = 0
 		if len(currencies) > 1:
@@ -616,6 +627,7 @@ class PayrollEntry(Document):
 		journal_entry.user_remark = user_remark
 		journal_entry.company = self.company
 		journal_entry.posting_date = self.posting_date
+		journal_entry.party_not_required = True if not employee_wise_accounting_enabled else False
 
 		journal_entry.set("accounts", accounts)
 		journal_entry.multi_currency = multi_currency
@@ -710,7 +722,9 @@ class PayrollEntry(Document):
 			}
 			"""
 			for employee, employee_details in self.employee_based_payroll_payable_entries.items():
-				payable_amount = employee_details.get("earnings", 0) - employee_details.get("deductions", 0)
+				payable_amount = (employee_details.get("earnings", 0) or 0) - (
+					employee_details.get("deductions", 0) or 0
+				)
 
 				payable_amount = self.get_accounting_entries_and_payable_amount(
 					payroll_payable_account,
@@ -831,6 +845,9 @@ class PayrollEntry(Document):
 		if account_currency not in currencies:
 			currencies.append(account_currency)
 
+		if company_currency not in currencies:
+			currencies.append(company_currency)
+
 		if account_currency == company_currency:
 			conversion_rate = self.exchange_rate
 			exchange_rate = 1
@@ -930,7 +947,9 @@ class PayrollEntry(Document):
 		bank_entry = None
 		if salary_slip_total > 0:
 			remark = "withheld salaries" if for_withheld_salaries else "salaries"
-			bank_entry = self.set_accounting_entries_for_bank_entry(salary_slip_total, remark)
+			bank_entry = self.set_accounting_entries_for_bank_entry(
+				salary_slip_total, remark, employee_wise_accounting_enabled
+			)
 
 			if for_withheld_salaries:
 				link_bank_entry_in_salary_withholdings(salary_details, bank_entry.name)
@@ -959,6 +978,13 @@ class PayrollEntry(Document):
 				& (SalarySlip.start_date >= self.start_date)
 				& (SalarySlip.end_date <= self.end_date)
 				& (SalarySlip.payroll_entry == self.name)
+				& (
+					(SalaryDetail.do_not_include_in_total == 0)
+					| (
+						(SalaryDetail.do_not_include_in_total == 1)
+						& (SalaryDetail.do_not_include_in_accounts == 0)
+					)
+				)
 			)
 		)
 
@@ -988,7 +1014,9 @@ class PayrollEntry(Document):
 
 		return total_loan_repayment
 
-	def set_accounting_entries_for_bank_entry(self, je_payment_amount, user_remark):
+	def set_accounting_entries_for_bank_entry(
+		self, je_payment_amount, user_remark, employee_wise_accounting_enabled
+	):
 		payroll_payable_account = self.payroll_payable_account
 		precision = frappe.get_precision("Journal Entry Account", "debit_in_account_currency")
 
@@ -1016,10 +1044,13 @@ class PayrollEntry(Document):
 		if self.employee_based_payroll_payable_entries:
 			for employee, employee_details in self.employee_based_payroll_payable_entries.items():
 				je_payment_amount = (
-					employee_details.get("earnings", 0)
-					- employee_details.get("deductions", 0)
-					- employee_details.get("total_loan_repayment", 0)
+					(employee_details.get("earnings", 0) or 0)
+					- (employee_details.get("deductions", 0) or 0)
+					- (employee_details.get("total_loan_repayment", 0) or 0)
 				)
+
+				if not je_payment_amount:
+					continue
 
 				exchange_rate, amount = self.get_amount_and_exchange_rate_for_journal_entry(
 					self.payment_account, je_payment_amount, company_currency, currencies
@@ -1071,6 +1102,7 @@ class PayrollEntry(Document):
 			user_remark=_("Payment of {0} from {1} to {2}").format(
 				_(user_remark), self.start_date, self.end_date
 			),
+			employee_wise_accounting_enabled=employee_wise_accounting_enabled,
 		)
 
 	def set_journal_entry_in_salary_slips(self, submitted_salary_slips, jv_name=None):

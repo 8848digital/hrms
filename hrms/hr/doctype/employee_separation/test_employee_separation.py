@@ -2,13 +2,13 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import getdate
 
 test_dependencies = ["Employee Onboarding"]
 
 
-class TestEmployeeSeparation(FrappeTestCase):
+class TestEmployeeSeparation(IntegrationTestCase):
 	def test_employee_separation(self):
 		separation = create_employee_separation()
 
@@ -35,12 +35,16 @@ class TestEmployeeSeparation(FrappeTestCase):
 
 
 def create_employee_separation():
-	employee = frappe.db.get_value("Employee", {"status": "Active", "company": "_Test Company"})
+	employee = frappe.db.get_value(
+		"Employee", {"status": "Active", "company": "_Test Company"}
+	)
 	separation = frappe.new_doc("Employee Separation")
 	separation.employee = employee
 	separation.boarding_begins_on = getdate()
 	separation.company = "_Test Company"
-	separation.append("activities", {"activity_name": "Deactivate Employee", "role": "HR User"})
+	separation.append(
+		"activities", {"activity_name": "Deactivate Employee", "role": "HR User"}
+	)
 	separation.boarding_status = "Pending"
 	separation.insert()
 	separation.submit()

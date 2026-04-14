@@ -2,25 +2,21 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase, if_app_installed
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, today
 
 from erpnext.setup.doctype.employee.test_employee import make_employee
 from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import make_purchase_receipt
 
 
-class TestFullandFinalStatement(FrappeTestCase):
-	@if_app_installed("assets")
+class TestFullandFinalStatement(IntegrationTestCase):
 	def setUp(self):
 		for dt in ["Full and Final Statement", "Asset", "Asset Movement", "Asset Movement Item"]:
 			frappe.db.delete(dt)
 
 		self.setup_fnf()
 
-	@if_app_installed("assets")
 	def setup_fnf(self):
-		from assets.assets.doctype.asset.test_asset import create_asset_data
-
 		create_asset_data()
 
 		self.employee = make_employee(
@@ -104,5 +100,6 @@ def create_asset():
 	asset = frappe.get_doc("Asset", asset_name)
 	asset.calculate_depreciation = 0
 	asset.available_for_use_date = today()
+	asset.save()
 	asset.submit()
 	return asset_name

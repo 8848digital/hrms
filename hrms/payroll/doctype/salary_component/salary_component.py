@@ -27,19 +27,24 @@ class SalaryComponent(Document):
 		if self._formula != self.formula:
 			self.db_set("formula", self._formula)
 
+	def validate(self):
+		self.validate_abbr()
+		self.validate_accounts()
+		self.validate_accrual_component()
+		self.valide_arrear_component()
+
+	def on_update(self):
+		# set old values (allowing multiline strings for better readability in the doctype form)
+		if self._condition != self.condition:
+			self.db_set("condition", self._condition)
+		if self._formula != self.formula:
+			self.db_set("formula", self._formula)
+
 	def clear_cache(self):
 		from hrms.payroll.doctype.salary_slip.salary_slip import (
 			SALARY_COMPONENT_VALUES,
 			TAX_COMPONENTS_BY_COMPANY,
 		)
-
-		frappe.cache().delete_value(SALARY_COMPONENT_VALUES)
-		frappe.cache().delete_value(TAX_COMPONENTS_BY_COMPANY)
-		return super().clear_cache()
-
-	def validate_abbr(self):
-		if not self.salary_component_abbr:
-			self.salary_component_abbr = "".join([c[0] for c in self.salary_component.split()]).upper()
 
 		self.salary_component_abbr = self.salary_component_abbr.strip()
 		self.salary_component_abbr = append_number_if_name_exists(

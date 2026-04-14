@@ -1,5 +1,5 @@
 import frappe
-from frappe.tests.utils import FrappeTestCase, change_settings
+from frappe.tests import IntegrationTestCase, change_settings
 from frappe.utils import add_days, add_months, getdate, nowdate
 
 import erpnext
@@ -9,18 +9,22 @@ from hrms.hr.doctype.leave_allocation.leave_allocation import (
 	BackDatedAllocationError,
 	OverAllocationError,
 )
-from hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry import process_expired_allocation
+from hrms.hr.doctype.leave_ledger_entry.leave_ledger_entry import (
+	process_expired_allocation,
+)
 from hrms.hr.doctype.leave_type.test_leave_type import create_leave_type
 
 
-class TestLeaveAllocation(FrappeTestCase):
+class TestLeaveAllocation(IntegrationTestCase):
 	def setUp(self):
 		frappe.db.delete("Leave Period")
 		frappe.db.delete("Leave Allocation")
 		frappe.db.delete("Leave Application")
 		frappe.db.delete("Leave Ledger Entry")
 
-		emp_id = make_employee("test_leave_allocation@salary.com", company="_Test Company")
+		emp_id = make_employee(
+			"test_leave_allocation@salary.com", company="_Test Company"
+		)
 		self.employee = frappe.get_doc("Employee", emp_id)
 
 	def test_overlapping_allocation(self):
@@ -69,7 +73,9 @@ class TestLeaveAllocation(FrappeTestCase):
 		self.assertRaises(frappe.ValidationError, doc.save)
 
 	def test_validation_for_over_allocation(self):
-		leave_type = create_leave_type(leave_type_name="Test Over Allocation", is_carry_forward=1)
+		leave_type = create_leave_type(
+			leave_type_name="Test Over Allocation", is_carry_forward=1
+		)
 
 		doc = frappe.get_doc(
 			{
@@ -138,7 +144,9 @@ class TestLeaveAllocation(FrappeTestCase):
 		).insert()
 
 		leave_type = create_leave_type(
-			leave_type_name="_Test Allocation Validation", is_carry_forward=1, max_leaves_allowed=25
+			leave_type_name="_Test Allocation Validation",
+			is_carry_forward=1,
+			max_leaves_allowed=25,
 		)
 
 		# 15 leaves allocated in this period
@@ -175,7 +183,9 @@ class TestLeaveAllocation(FrappeTestCase):
 		).insert()
 
 		leave_type = create_leave_type(
-			leave_type_name="_Test Allocation Validation", is_carry_forward=1, max_leaves_allowed=30
+			leave_type_name="_Test Allocation Validation",
+			is_carry_forward=1,
+			max_leaves_allowed=30,
 		)
 
 		# 15 leaves allocated
@@ -320,6 +330,38 @@ class TestLeaveAllocation(FrappeTestCase):
 			expire_carry_forwarded_leaves_after_days=90,
 		)
 
+		# initial leave allocation = 0.416333
+		leave_allocation = create_leave_allocation(
+			employee=self.employee.name,
+			new_leaves_allocated=0.416333,
+			leave_type="_Test_CF_leave",
+			from_date=add_months(nowdate(), -12),
+			to_date=add_months(nowdate(), -1),
+			carry_forward=0,
+		)
+		leave_allocation.submit()
+
+		# carry forwarded leaves considering
+		# new_leaves = 0.58, carry_forwarded = 0.42
+		leave_allocation_1 = create_leave_allocation(
+			employee=self.employee.name,
+			new_leaves_allocated=0.58,
+			leave_type="_Test_CF_leave",
+			carry_forward=1,
+		)
+		leave_allocation_1.submit()
+		leave_allocation_1.reload()
+
+		self.assertEqual(leave_allocation_1.unused_leaves, 0.42)
+		self.assertEqual(leave_allocation_1.total_leaves_allocated, 1)
+
+	def test_carry_forward_leaves_expiry(self):
+		create_leave_type(
+			leave_type_name="_Test_CF_leave_expiry",
+			is_carry_forward=1,
+			expire_carry_forwarded_leaves_after_days=90,
+		)
+
 		# initial leave allocation
 		leave_allocation = create_leave_allocation(
 			employee=self.employee.name,
@@ -330,32 +372,6 @@ class TestLeaveAllocation(FrappeTestCase):
 			carry_forward=0,
 		)
 		leave_allocation.submit()
-
-		leave_allocation = create_leave_allocation(
-			employee=self.employee.name,
-			employee_name=self.employee.employee_name,
-			leave_type="_Test_CF_leave_expiry",
-			from_date=add_days(nowdate(), -90),
-			to_date=add_days(nowdate(), 100),
-			carry_forward=1,
-		)
-		leave_allocation.submit()
-
-		# expires all the carry forwarded leaves after 90 days
-		process_expired_allocation()
-
-		# leave allocation with carry forward of only new leaves allocated
-		leave_allocation_1 = create_leave_allocation(
-			employee=self.employee.name,
-			employee_name=self.employee.employee_name,
-			leave_type="_Test_CF_leave_expiry",
-			carry_forward=1,
-			from_date=add_months(nowdate(), 6),
-			to_date=add_months(nowdate(), 12),
-		)
-		leave_allocation_1.submit()
-
-		self.assertEqual(leave_allocation_1.unused_leaves, leave_allocation.new_leaves_allocated)
 
 	def test_carry_forward_leaves_expiry_after_partially_used_leaves(self):
 		from hrms.payroll.doctype.salary_slip.test_salary_slip import make_leave_application
@@ -464,18 +480,155 @@ class TestLeaveAllocation(FrappeTestCase):
 		)
 		leave_allocation.submit()
 
+		# expires all the carry forwarded leaves after 90 days
+		process_expired_allocation()
+
+		# leave allocation with carry forward of only new leaves allocated
+		leave_allocation_1 = create_leave_allocation(
+			employee=self.employee.name,
+			employee_name=self.employee.employee_name,
+			leave_type="_Test_CF_leave_expiry",
+			carry_forward=1,
+			from_date=add_months(nowdate(), 6),
+			to_date=add_months(nowdate(), 12),
+		)
+		leave_allocation_1.submit()
+
+		# check if leave ledger entry is deleted on cancellation
+		leave_allocation.cancel()
+		self.assertFalse(frappe.db.exists("Leave Ledger Entry", {"transaction_name": leave_allocation.name}))
+
+	def test_carry_forward_leaves_expiry_after_partially_used_leaves(self):
+		from hrms.payroll.doctype.salary_slip.test_salary_slip import (
+			make_leave_application,
+		)
+
+		leave_type = create_leave_type(
+			leave_type_name="_Test_CF_leave_expiry",
+			is_carry_forward=1,
+			expire_carry_forwarded_leaves_after_days=90,
+		)
+
+		# initial leave allocation = 5
+		leave_allocation = create_leave_allocation(
+			employee=self.employee.name,
+			leave_type="_Test_CF_leave_expiry",
+			from_date=add_months(nowdate(), -24),
+			to_date=add_months(nowdate(), -12),
+			new_leaves_allocated=5,
+			carry_forward=0,
+		)
+		leave_allocation.submit()
+
+		# carry-forward 5 leaves + 15 new leaves
+		leave_allocation = create_leave_allocation(
+			employee=self.employee.name,
+			leave_type="_Test_CF_leave_expiry",
+			from_date=add_days(nowdate(), -90),
+			to_date=add_days(nowdate(), 100),
+			carry_forward=1,
+		)
+		leave_allocation.submit()
+
+		# leave application for 3 days
+		make_leave_application(
+			self.employee.name,
+			leave_allocation.from_date,
+			add_days(leave_allocation.from_date, 2),
+			leave_type.name,
+		)
+
+		# only unused carry-forwarded leaves should expire
+		process_expired_allocation()
+		expired_leaves = frappe.db.get_value(
+			"Leave Ledger Entry",
+			dict(
+				transaction_name=leave_allocation.name,
+				is_expired=1,
+				is_carry_forward=1,
+			),
+			"leaves",
+		)
+		self.assertEqual(expired_leaves, -2)
+
+	def test_carry_forward_leaves_expiry_after_completely_used_leaves(self):
+		from hrms.payroll.doctype.salary_slip.test_salary_slip import (
+			make_leave_application,
+		)
+
+		leave_type = create_leave_type(
+			leave_type_name="_Test_CF_leave_expiry",
+			is_carry_forward=1,
+			expire_carry_forwarded_leaves_after_days=90,
+		)
+
+		# initial leave allocation = 5
+		leave_allocation = create_leave_allocation(
+			employee=self.employee.name,
+			leave_type="_Test_CF_leave_expiry",
+			from_date=add_months(nowdate(), -24),
+			to_date=add_months(nowdate(), -12),
+			new_leaves_allocated=5,
+			carry_forward=0,
+		)
+		leave_allocation.submit()
+
+		# carry-forward 5 leaves + 15 new leaves
+		leave_allocation = create_leave_allocation(
+			employee=self.employee.name,
+			leave_type="_Test_CF_leave_expiry",
+			from_date=add_days(nowdate(), -90),
+			to_date=add_days(nowdate(), 100),
+			carry_forward=1,
+		)
+		leave_allocation.submit()
+
+		# leave application for 6 days, all cf leaves used
+		make_leave_application(
+			self.employee.name,
+			leave_allocation.from_date,
+			add_days(leave_allocation.from_date, 5),
+			leave_type.name,
+		)
+
+		# 0 leaves should expire
+		process_expired_allocation()
+		expired_leaves = frappe.db.exists(
+			"Leave Ledger Entry",
+			dict(
+				transaction_name=leave_allocation.name,
+				is_expired=1,
+				is_carry_forward=1,
+			),
+		)
+		self.assertIsNone(expired_leaves)
+
+	def test_creation_of_leave_ledger_entry_on_submit(self):
+		leave_allocation = create_leave_allocation(
+			employee=self.employee.name, employee_name=self.employee.employee_name
+		)
+		leave_allocation.submit()
+
 		leave_ledger_entry = frappe.get_all(
-			"Leave Ledger Entry", fields="*", filters=dict(transaction_name=leave_allocation.name)
+			"Leave Ledger Entry",
+			fields="*",
+			filters=dict(transaction_name=leave_allocation.name),
 		)
 
 		self.assertEqual(len(leave_ledger_entry), 1)
 		self.assertEqual(leave_ledger_entry[0].employee, leave_allocation.employee)
 		self.assertEqual(leave_ledger_entry[0].leave_type, leave_allocation.leave_type)
-		self.assertEqual(leave_ledger_entry[0].leaves, leave_allocation.new_leaves_allocated)
+		self.assertEqual(
+			leave_ledger_entry[0].leaves, leave_allocation.new_leaves_allocated
+		)
 
 		# check if leave ledger entry is deleted on cancellation
 		leave_allocation.cancel()
-		self.assertFalse(frappe.db.exists("Leave Ledger Entry", {"transaction_name": leave_allocation.name}))
+		self.assertFalse(
+			frappe.db.exists(
+				"Leave Ledger Entry", {"transaction_name": leave_allocation.name}
+			)
+		)
 
 	def test_leave_addition_after_submit(self):
 		leave_allocation = create_leave_allocation(
@@ -584,7 +737,10 @@ class TestLeaveAllocation(FrappeTestCase):
 
 		make_holiday_list()
 		frappe.db.set_value(
-			"Company", self.employee.company, "default_holiday_list", "Salary Slip Test Holiday List"
+			"Company",
+			self.employee.company,
+			"default_holiday_list",
+			"Salary Slip Test Holiday List",
 		)
 
 		leave_allocation = create_leave_allocation(

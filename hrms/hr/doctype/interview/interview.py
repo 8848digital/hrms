@@ -7,7 +7,7 @@ import datetime
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.query_builder.functions import Avg, Min
+from frappe.query_builder.functions import Avg
 from frappe.utils import cint, cstr, get_datetime, get_link_to_form, getdate, nowtime
 
 
@@ -170,20 +170,18 @@ def get_feedback(interview: str) -> list[dict]:
 def get_skill_wise_average_rating(interview: str) -> list[dict]:
 	skill_assessment = frappe.qb.DocType("Skill Assessment")
 	interview_feedback = frappe.qb.DocType("Interview Feedback")
-	query = (
-        frappe.qb.select(
-            skill_assessment.skill,
-            Avg(skill_assessment.rating).as_("average_rating"),
-            Min(skill_assessment.idx).as_("min_idx")
-        )
-        .from_(skill_assessment)
-        .join(interview_feedback)
-        .on(skill_assessment.parent == interview_feedback.name)
-        .where((interview_feedback.interview == interview) & (interview_feedback.docstatus == 1))
-        .groupby(skill_assessment.skill)
-    )
-	results = query.run(as_dict=True)
-	return sorted(results, key=lambda x: x["min_idx"])
+	return (
+		frappe.qb.select(
+			skill_assessment.skill,
+			Avg(skill_assessment.rating).as_("rating"),
+		)
+		.from_(skill_assessment)
+		.join(interview_feedback)
+		.on(skill_assessment.parent == interview_feedback.name)
+		.where((interview_feedback.interview == interview) & (interview_feedback.docstatus == 1))
+		.groupby(skill_assessment.skill)
+		.orderby(skill_assessment.idx)
+	).run(as_dict=True)
 
 
 @frappe.whitelist()
@@ -335,7 +333,7 @@ def create_interview_feedback(data, interview_name, interviewer, job_applicant):
 
 	for d in data.skill_set:
 		d = frappe._dict(d)
-		interview_feedback.append("skill_assessment", {"skill": d.skill, "rating": d.rating})
+		interview_feedback.append("skill_assessment", d)
 
 	interview_feedback.feedback = data.feedback
 	interview_feedback.result = data.result

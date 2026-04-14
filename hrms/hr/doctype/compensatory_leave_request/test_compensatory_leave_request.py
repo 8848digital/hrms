@@ -2,10 +2,13 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, add_months, today
 
 from hrms.hr.doctype.attendance_request.test_attendance_request import get_employee
+from hrms.hr.doctype.leave_allocation.test_leave_allocation import (
+	create_leave_allocation,
+)
 from hrms.hr.doctype.leave_application.leave_application import get_leave_balance_on
 from hrms.hr.doctype.leave_period.test_leave_period import create_leave_period
 from hrms.tests.test_utils import add_date_to_holiday_list
@@ -13,7 +16,7 @@ from hrms.tests.test_utils import add_date_to_holiday_list
 test_dependencies = ["Employee"]
 
 
-class TestCompensatoryLeaveRequest(FrappeTestCase):
+class TestCompensatoryLeaveRequest(IntegrationTestCase):
 	def setUp(self):
 		frappe.db.delete("Compensatory Leave Request")
 		frappe.db.delete("Leave Ledger Entry")
@@ -21,7 +24,9 @@ class TestCompensatoryLeaveRequest(FrappeTestCase):
 		frappe.db.delete("Attendance")
 		frappe.db.delete("Leave Period")
 
-		create_leave_period(add_months(today(), -3), add_months(today(), 3), "_Test Company")
+		create_leave_period(
+			add_months(today(), -3), add_months(today(), 3), "_Test Company"
+		)
 		create_holiday_list()
 
 		employee = get_employee()
@@ -34,7 +39,9 @@ class TestCompensatoryLeaveRequest(FrappeTestCase):
 		mark_attendance(employee)
 		compensatory_leave_request = get_compensatory_leave_request(employee.name)
 
-		before = get_leave_balance_on(employee.name, compensatory_leave_request.leave_type, today())
+		before = get_leave_balance_on(
+			employee.name, compensatory_leave_request.leave_type, today()
+		)
 		compensatory_leave_request.submit()
 
 		self.assertEqual(
@@ -42,7 +49,7 @@ class TestCompensatoryLeaveRequest(FrappeTestCase):
 			before + 1,
 		)
 
-	def test_leave_allocation_update_on_submit(self):
+	def test_allocation_update_on_submit(self):
 		employee = get_employee()
 		mark_attendance(employee, date=add_days(today(), -1))
 		compensatory_leave_request = get_compensatory_leave_request(
@@ -70,6 +77,54 @@ class TestCompensatoryLeaveRequest(FrappeTestCase):
 		)
 		self.assertEqual(leaves_allocated, 2)
 
+	def test_allocation_update_on_submit_on_multiple_allocations(self):
+		"""Tests whether the correct allocation is updated when there are multiple allocations in the same leave period"""
+		employee = get_employee()
+		today = getdate()
+
+		first_alloc_start = add_months(today, -3)
+		first_alloc_end = add_days(today, -1)
+		second_alloc_start = today
+		second_alloc_end = add_months(today, 1)
+
+		add_date_to_holiday_list(first_alloc_start, employee.holiday_list)
+		allocation_1 = create_leave_allocation(
+			leave_type="Compensatory Off",
+			employee=employee.name,
+			from_date=first_alloc_start,
+			to_date=first_alloc_end,
+		)
+		allocation_1.new_leaves_allocated = 0
+		allocation_1.submit()
+
+		add_date_to_holiday_list(second_alloc_start, employee.holiday_list)
+		allocation_2 = create_leave_allocation(
+			leave_type="Compensatory Off",
+			employee=employee.name,
+			from_date=second_alloc_start,
+			to_date=second_alloc_end,
+		)
+		allocation_2.new_leaves_allocated = 0
+		allocation_2.submit()
+
+		# adds leave balance in first allocation
+		mark_attendance(employee, date=first_alloc_start)
+		compensatory_leave_request = get_compensatory_leave_request(
+			employee.name, leave_date=first_alloc_start
+		)
+		compensatory_leave_request.submit()
+		allocation_1.reload()
+		self.assertEqual(allocation_1.total_leaves_allocated, 1)
+
+		# adds leave balance in second allocation
+		mark_attendance(employee, date=second_alloc_start)
+		compensatory_leave_request = get_compensatory_leave_request(
+			employee.name, leave_date=second_alloc_start
+		)
+		compensatory_leave_request.submit()
+		allocation_2.reload()
+		self.assertEqual(allocation_2.total_leaves_allocated, 1)
+
 	def test_creation_of_leave_ledger_entry_on_submit(self):
 		"""check creation of leave ledger entry on submission of leave request"""
 		employee = get_employee()
@@ -78,11 +133,17 @@ class TestCompensatoryLeaveRequest(FrappeTestCase):
 		compensatory_leave_request.submit()
 
 		filters = dict(transaction_name=compensatory_leave_request.leave_allocation)
-		leave_ledger_entry = frappe.get_all("Leave Ledger Entry", fields="*", filters=filters)
+		leave_ledger_entry = frappe.get_all(
+			"Leave Ledger Entry", fields="*", filters=filters
+		)
 
 		self.assertEqual(len(leave_ledger_entry), 1)
-		self.assertEqual(leave_ledger_entry[0].employee, compensatory_leave_request.employee)
-		self.assertEqual(leave_ledger_entry[0].leave_type, compensatory_leave_request.leave_type)
+		self.assertEqual(
+			leave_ledger_entry[0].employee, compensatory_leave_request.employee
+		)
+		self.assertEqual(
+			leave_ledger_entry[0].leave_type, compensatory_leave_request.leave_type
+		)
 		self.assertEqual(leave_ledger_entry[0].leaves, 1)
 
 		# check reverse leave ledger entry on cancellation
@@ -92,13 +153,17 @@ class TestCompensatoryLeaveRequest(FrappeTestCase):
 		)
 
 		self.assertEqual(len(leave_ledger_entry), 2)
-		self.assertEqual(leave_ledger_entry[0].employee, compensatory_leave_request.employee)
-		self.assertEqual(leave_ledger_entry[0].leave_type, compensatory_leave_request.leave_type)
+		self.assertEqual(
+			leave_ledger_entry[0].employee, compensatory_leave_request.employee
+		)
+		self.assertEqual(
+			leave_ledger_entry[0].leave_type, compensatory_leave_request.leave_type
+		)
 		self.assertEqual(leave_ledger_entry[0].leaves, -1)
 
 	def test_half_day_compensatory_leave(self):
 		employee = get_employee()
-		mark_attendance(employee, status="Half Day")
+		mark_attendance(employee, status="Half Day", half_day_status="Absent")
 		date = today()
 		compensatory_leave_request = frappe.new_doc("Compensatory Leave Request")
 		compensatory_leave_request.update(
@@ -155,10 +220,51 @@ class TestCompensatoryLeaveRequest(FrappeTestCase):
 		compensatory_leave_request.reload()
 		compensatory_leave_request.submit()
 
+	def test_request_on_leave_period_boundary(self):
+		frappe.db.delete("Leave Period")
+		create_leave_period("2023-01-01", "2023-12-31", "_Test Company")
+		create_holiday_list("2023-01-01", "2023-12-31")
+
+		employee = get_employee()
+		boundary_date = "2023-12-31"
+		add_date_to_holiday_list(boundary_date, employee.holiday_list)
+		mark_attendance(employee, boundary_date, "Present")
+
+		# no leave period found of "2024-01-01"
+		compensatory_leave_request = frappe.new_doc("Compensatory Leave Request")
+		compensatory_leave_request.update(
+			dict(
+				employee=employee.name,
+				leave_type="Compensatory Off",
+				work_from_date=boundary_date,
+				work_end_date=boundary_date,
+				reason="test",
+			)
+		)
+		compensatory_leave_request.insert()
+		self.assertRaises(frappe.ValidationError, compensatory_leave_request.submit)
+
+		create_leave_period("2024-01-01", "2024-12-31", "_Test Company")
+		compensatory_leave_request.reload()
+		compensatory_leave_request.submit()
+
 
 def get_compensatory_leave_request(employee, leave_date=None):
 	if not leave_date:
 		leave_date = today()
+
+	prev_comp_leave_req = frappe.db.get_value(
+		"Compensatory Leave Request",
+		dict(
+			leave_type="Compensatory Off",
+			work_from_date=leave_date,
+			work_end_date=leave_date,
+			employee=employee,
+		),
+		"name",
+	)
+	if prev_comp_leave_req:
+		return frappe.get_doc("Compensatory Leave Request", prev_comp_leave_req)
 
 	prev_comp_leave_req = frappe.db.get_value(
 		"Compensatory Leave Request",

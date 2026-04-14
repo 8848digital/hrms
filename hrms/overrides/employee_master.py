@@ -11,7 +11,7 @@ from erpnext.setup.doctype.employee.employee import Employee
 
 class EmployeeMaster(Employee):
 	def autoname(self):
-		naming_method = frappe.db.get_value("HR Settings", None, "emp_created_by")
+		naming_method = frappe.db.get_single_value("HR Settings", "emp_created_by")
 		if not naming_method:
 			frappe.throw(_("Please setup Employee Naming System in Human Resource > HR Settings"))
 		else:
@@ -97,7 +97,17 @@ def update_approver_role(doc, method=None):
 		user.flags.ignore_permissions = True
 		user.add_roles("Expense Approver")
 
+def update_approver_user_roles(doc, method=None):
+	approver_roles = set()
+	if frappe.db.exists("Employee", {"leave_approver": doc.name}):
+		approver_roles.add("Leave Approver")
 
+	if frappe.db.exists("Employee", {"expense_approver": doc.name}):
+		approver_roles.add("Expense Approver")
+
+	if approver_roles:
+		doc.append_roles(*approver_roles)
+		
 def update_employee_transfer(doc, method=None):
 	"""Unsets Employee ID in Employee Transfer if doc is deleted"""
 	if frappe.db.exists("Employee Transfer", {"new_employee_id": doc.name, "docstatus": 1}):

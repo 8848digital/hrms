@@ -6,6 +6,7 @@ from frappe.tests.utils import FrappeTestCase, change_settings
 from frappe.utils import flt, nowdate
 
 import erpnext
+from erpnext.accounts.doctype.account.test_account import create_account
 from erpnext.setup.doctype.employee.test_employee import make_employee
 
 from hrms.hr.doctype.employee_advance.employee_advance import (
@@ -14,7 +15,7 @@ from hrms.hr.doctype.employee_advance.employee_advance import (
 	make_bank_entry,
 	make_return_entry,
 )
-from hrms.hr.doctype.expense_claim.expense_claim import get_advances
+from hrms.hr.doctype.expense_claim.expense_claim import get_advances, get_allocation_amount
 from hrms.hr.doctype.expense_claim.test_expense_claim import (
 	get_payable_account,
 	make_expense_claim,
@@ -23,10 +24,17 @@ from hrms.payroll.doctype.salary_component.test_salary_component import create_s
 from hrms.payroll.doctype.salary_structure.test_salary_structure import make_salary_structure
 
 
-class TestEmployeeAdvance(FrappeTestCase):
+class TestEmployeeAdvance(IntegrationTestCase):
 	def setUp(self):
 		frappe.db.delete("Employee Advance")
 		self.update_company_in_fiscal_year()
+		frappe.db.set_value("Account", "Employee Advances - _TC", "account_type", "Receivable")
+		frappe.db.set_value("Account", "_Test Employee Advance - _TC", "account_type", "Receivable")
+
+	def tearDown(self):
+		frappe.set_value(
+			"Company", "_Test Company", "default_employee_advance_account", "Employee Advances - _TC"
+		)
 
 	def test_paid_amount_and_status(self):
 		employee_name = make_employee("_T@employee.advance", "_Test Company")
@@ -295,6 +303,58 @@ class TestEmployeeAdvance(FrappeTestCase):
 		self.assertEqual(advance_payment.unallocated_amount, 1000)
 		self.assertEqual(advance_payment.references, [])
 
+	def test_employee_advance_when_different_company_currency(self):
+		employee = make_employee("test_adv_in_company_currency@example.com", "_Test Company")
+
+		account = create_account(
+			account_name="Employee Advance (USD)",
+			parent_account="Accounts Receivable - _TC",
+			company="_Test Company",
+			account_currency="USD",
+			account_type="Receivable",
+		)
+
+		frappe.db.set_value("Company", "_Test Company", "default_employee_advance_account", account)
+
+		advance = make_employee_advance(employee, {"currency": "USD", "exchange_rate": 80})
+		make_payment_entry(advance, 1000)
+		advance.reload()
+
+		self.assertEqual(advance.status, "Paid")
+		self.assertEqual(advance.paid_amount, 1000)
+
+	def test_employee_advance_when_different_account_currency(self):
+		employee = make_employee("test_adv_in_account_currency@example.com", "_Test Company")
+		account = create_account(
+			account_name="Employee Advance (USD)",
+			parent_account="Accounts Receivable - _TC",
+			company="_Test Company",
+			account_currency="USD",
+			account_type="Receivable",
+		)
+
+		frappe.db.set_value("Company", "_Test Company", "default_employee_advance_account", account)
+		advance = make_employee_advance(employee, {"currency": "INR", "exchange_rate": 1})
+		make_payment_entry(advance, 1000)
+		advance.reload()
+
+		self.assertEqual(advance.status, "Paid")
+		self.assertEqual(advance.paid_amount, 1000)
+
+	def test_employee_advance_when_different_advance_currency(self):
+		employee = make_employee("test_adv_in_advance_currency@example.com", "_Test Company")
+
+		advance = make_employee_advance(employee, {"currency": "USD", "exchange_rate": 80})
+		frappe.db.set_value(
+			"Company", "_Test Company", "default_employee_advance_account", "_Test Employee Advance - _TC"
+		)
+		make_payment_entry(advance)
+
+		advance.reload()
+
+		self.assertEqual(advance.status, "Paid")
+		self.assertEqual(advance.paid_amount, 1000)
+
 	def update_company_in_fiscal_year(self):
 		fy_entries = frappe.get_all("Fiscal Year")
 		for fy_entry in fy_entries:
@@ -314,15 +374,16 @@ def make_journal_entry_for_advance(advance):
 	return journal_entry
 
 
-def make_payment_entry(advance, amount):
+def make_payment_entry(advance, amount=None):
 	from hrms.overrides.employee_payment_entry import get_payment_entry_for_employee
 
 	payment_entry = get_payment_entry_for_employee(advance.doctype, advance.name)
+
 	payment_entry.reference_no = "1"
 	payment_entry.reference_date = nowdate()
-	payment_entry.references[0].allocated_amount = amount
+	if amount:
+		payment_entry.references[0].allocated_amount = amount
 	payment_entry.submit()
-
 	return payment_entry
 
 
@@ -353,7 +414,11 @@ def get_advances_for_claim(claim, advance_name, amount=None):
 		if amount:
 			allocated_amount = amount
 		else:
-			allocated_amount = flt(entry.paid_amount) - flt(entry.claimed_amount)
+			allocated_amount = get_allocation_amount(
+				paid_amount=entry.paid_amount,
+				claimed_amount=entry.claimed_amount,
+				return_amount=entry.return_amount,
+			)
 
 		claim.append(
 			"advances",
@@ -362,7 +427,8 @@ def get_advances_for_claim(claim, advance_name, amount=None):
 				"posting_date": entry.posting_date,
 				"advance_account": entry.advance_account,
 				"advance_paid": entry.paid_amount,
-				"unclaimed_amount": allocated_amount,
+				"return_amount": entry.return_amount,
+				"unclaimed_amount": entry.paid_amount - entry.claimed_amount,
 				"allocated_amount": allocated_amount,
 			},
 		)

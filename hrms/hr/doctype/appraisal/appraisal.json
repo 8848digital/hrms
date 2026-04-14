@@ -15,7 +15,6 @@
   "employee_image",
   "column_break0",
   "company",
-  "status",
   "appraisal_cycle",
   "start_date",
   "end_date",
@@ -84,20 +83,6 @@
    "width": "50%"
   },
   {
-   "default": "Draft",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_standard_filter": 1,
-   "label": "Status",
-   "no_copy": 1,
-   "oldfieldname": "status",
-   "oldfieldtype": "Select",
-   "options": "\nDraft\nSubmitted\nCompleted\nCancelled",
-   "read_only": 1,
-   "reqd": 1,
-   "search_index": 1
-  },
-  {
    "fetch_from": "employee.department",
    "fieldname": "department",
    "fieldtype": "Link",
@@ -146,7 +131,6 @@
    "fieldtype": "Section Break"
   },
   {
-   "description": "Out of 5",
    "fieldname": "total_score",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -301,7 +285,7 @@
   },
   {
    "depends_on": "appraisal_cycle",
-   "description": "Average of Goal Score, Feedback Score, and Self Appraisal Score (out of 5)",
+   "description": "Average of Goal Score, Feedback Score, and Self Appraisal Score",
    "fieldname": "final_score",
    "fieldtype": "Float",
    "in_list_view": 1,
@@ -314,7 +298,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2023-10-21 10:22:26.270161",
+ "modified": "2024-03-27 13:06:31.286679",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Appraisal",
@@ -374,7 +358,7 @@
   }
  ],
  "search_fields": "status, employee, employee_name, appraisal_cycle",
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "timeline_field": "employee",

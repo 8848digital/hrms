@@ -2,12 +2,14 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
+
+from hrms.payroll.doctype.salary_structure.test_salary_structure import make_salary_structure
 
 from hrms.payroll.doctype.salary_structure.test_salary_structure import make_salary_structure
 
 
-class TestSalaryComponent(FrappeTestCase):
+class TestSalaryComponent(IntegrationTestCase):
 	def test_update_salary_structures(self):
 		salary_component = create_salary_component("Special Allowance")
 		salary_component.condition = "H < 10000"
@@ -67,5 +69,7 @@ def create_salary_component(component_name, **args):
 			"salary_component": component_name,
 			"type": args.get("type") or "Earning",
 			"is_tax_applicable": args.get("is_tax_applicable") or 1,
+			"do_not_include_in_total": args.get("do_not_include_in_total") or 0,
+			"do_not_include_in_accounts": args.get("do_not_include_in_accounts") or 0,
 		}
 	).insert()

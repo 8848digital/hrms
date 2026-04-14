@@ -2,22 +2,24 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 
 from erpnext.setup.doctype.designation.test_designation import create_designation
 from erpnext.setup.doctype.employee.test_employee import make_employee
 
 from hrms.hr.doctype.appraisal_cycle.appraisal_cycle import get_appraisal_cycle_summary
 from hrms.hr.doctype.appraisal_cycle.test_appraisal_cycle import create_appraisal_cycle
-from hrms.hr.doctype.appraisal_template.test_appraisal_template import create_appraisal_template
+from hrms.hr.doctype.appraisal_template.test_appraisal_template import (
+    create_appraisal_template,
+)
 from hrms.hr.doctype.employee_performance_feedback.test_employee_performance_feedback import (
-	create_performance_feedback,
+    create_performance_feedback,
 )
 from hrms.hr.doctype.goal.test_goal import create_goal
 from hrms.tests.test_utils import create_company
 
 
-class TestAppraisal(FrappeTestCase):
+class TestAppraisal(IntegrationTestCase):
 	def setUp(self):
 		frappe.db.delete("Goal")
 		frappe.db.delete("Appraisal")

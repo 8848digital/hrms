@@ -24,7 +24,7 @@ from hrms.tests.test_utils import create_employee_grade
 test_dependencies = ["Fiscal Year"]
 
 
-class TestSalaryStructure(FrappeTestCase):
+class TestSalaryStructure(IntegrationTestCase):
 	def setUp(self):
 		for dt in ["Salary Slip", "Salary Structure", "Salary Structure Assignment"]:
 			frappe.db.sql("delete from `tab%s`" % dt)
@@ -243,7 +243,7 @@ def create_salary_structure_assignment(
 	if not payroll_period:
 		payroll_period = create_payroll_period(company="_Test Company")
 
-	income_tax_slab = frappe.db.get_value("Income Tax Slab", {"currency": currency})
+	income_tax_slab = frappe.db.get_value("Income Tax Slab", {"currency": currency, "docstatus": 1})
 
 	if not income_tax_slab:
 		income_tax_slab = create_tax_slab(payroll_period, allow_tax_exemption=True, currency=currency)
