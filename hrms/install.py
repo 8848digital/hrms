@@ -1,5 +1,5 @@
 import click
-
+import frappe
 from hrms.setup import after_install as setup
 
 

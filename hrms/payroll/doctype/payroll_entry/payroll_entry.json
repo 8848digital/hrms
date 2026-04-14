@@ -335,11 +335,7 @@
  "icon": "fa fa-cog",
  "is_submittable": 1,
  "links": [],
-<<<<<<< HEAD
- "modified": "2024-03-27 13:10:12.205570",
-=======
  "modified": "2025-01-22 15:27:16.652848",
->>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Payroll Entry",
