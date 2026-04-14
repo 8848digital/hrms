@@ -144,6 +144,19 @@ def create_employee_grade(
     ).insert()
 
 
+def create_employee_grade(grade: str, default_structure: str | None = None, default_base: float = 50000):
+	if frappe.db.exists("Employee Grade", grade):
+		return frappe.get_doc("Employee Grade", grade)
+	return frappe.get_doc(
+		{
+			"doctype": "Employee Grade",
+			"__newname": grade,
+			"default_salary_structure": default_structure,
+			"default_base_pay": default_base,
+		}
+	).insert()
+
+
 def create_job_applicant(**args):
     args = frappe._dict(args)
     filters = {

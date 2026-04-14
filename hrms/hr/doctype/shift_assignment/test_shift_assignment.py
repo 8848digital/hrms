@@ -2,7 +2,7 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, get_datetime, getdate, nowdate
 
 from erpnext.setup.doctype.employee.test_employee import make_employee

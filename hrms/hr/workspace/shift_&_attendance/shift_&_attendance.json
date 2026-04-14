@@ -1,4 +1,5 @@
 {
+ "app": "hrms",
  "charts": [
   {
    "chart_name": "Attendance Count",
@@ -165,7 +166,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Shifts",
-   "link_count": 5,
+   "link_count": 6,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -176,6 +177,16 @@
    "label": "Shift Type",
    "link_count": 0,
    "link_to": "Shift Type",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Shift Location",
+   "link_count": 0,
+   "link_to": "Shift Location",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -282,5 +293,6 @@
    "type": "DocType"
   }
  ],
- "title": "Shift & Attendance"
+ "title": "Shift & Attendance",
+ "type": "Workspace"
 }

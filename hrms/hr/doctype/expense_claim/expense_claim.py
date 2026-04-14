@@ -30,10 +30,6 @@ class ExpenseApproverIdentityError(frappe.ValidationError):
 	pass
 
 
-class MismatchError(frappe.ValidationError):
-	pass
-
-
 class ExpenseClaim(AccountsController, PWANotificationsMixin):
 	def onload(self):
 		self.get("__onload").make_payment_via_journal_entry = frappe.db.get_single_value(
@@ -43,6 +39,9 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 			"self_expense_approval_not_allowed",
 			frappe.db.get_single_value("HR Settings", "prevent_self_expense_approval"),
 		)
+
+	def after_insert(self):
+		self.notify_approver()
 
 	def after_insert(self):
 		self.notify_approver()
@@ -126,12 +125,9 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		if not self.payable_account and not self.is_paid:
 			frappe.throw(_("Payable Account is mandatory to submit an Expense Claim"))
 
-		self.validate_for_self_approval()
-
 	def publish_update(self):
 		employee_user = frappe.db.get_value("Employee", self.employee, "user_id", cache=True)
 		hrms.refetch_resource("hrms:my_claims", employee_user)
-		hrms.refetch_resource("hrms:team_claims")
 
 	def on_submit(self):
 		if self.approval_status == "Draft":
@@ -145,7 +141,7 @@ class ExpenseClaim(AccountsController, PWANotificationsMixin):
 		self.update_claimed_amount_in_employee_advance()
 
 	def on_update_after_submit(self):
-		if self.check_if_fields_updated([], {"taxes": ("account_head",), "expenses": ()}):
+		if self.check_if_fields_updated([], {"taxes": ("account_head")}):
 			validate_docs_for_voucher_types(["Expense Claim"])
 			self.repost_accounting_entries()
 

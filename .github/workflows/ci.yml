@@ -106,16 +106,25 @@ jobs:
         run: |
           bash ${GITHUB_WORKSPACE}/.github/helper/install.sh
         env:
-          BRANCH_TO_CLONE: ${{ env.HR_BRANCH }}
+          FRAPPE_USER: ${{ github.event.inputs.user }}
+          FRAPPE_BRANCH: ${{ github.event.inputs.branch }}
 
       - name: Run Tests
+<<<<<<< HEAD
+        run: cd ~/frappe-bench/ && bench --site test_site run-parallel-tests --app hrms --total-builds ${{ strategy.job-total }} --build-number ${{ matrix.container }}
+=======
         run: cd ~/frappe-bench/ && bench --site test_site run-parallel-tests --app hrms --total-builds 2 --build-number ${{ matrix.container }}
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
         env:
           TYPE: server
           CAPTURE_COVERAGE: ${{ github.event_name != 'pull_request' }}
 
       - name: Upload coverage data
+<<<<<<< HEAD
+        uses: actions/upload-artifact@v3
+=======
         uses: actions/upload-artifact@v4
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
         if: github.event_name != 'pull_request'
         with:
           name: coverage-${{ matrix.container }}
@@ -128,13 +137,14 @@ jobs:
     if: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Clone
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
 
       - name: Upload coverage data
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
           verbose: true

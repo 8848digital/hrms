@@ -8,6 +8,9 @@ from itertools import groupby
 import frappe
 from frappe import _
 from frappe.model.document import Document
+<<<<<<< HEAD
+from frappe.utils import cint, create_batch, get_datetime, get_time, getdate
+=======
 from frappe.utils import (
     add_days,
     cint,
@@ -17,6 +20,7 @@ from frappe.utils import (
     getdate,
     time_diff,
 )
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
 
 from erpnext.setup.doctype.employee.employee import get_holiday_list_for_employee
 from erpnext.setup.doctype.holiday_list.holiday_list import is_holiday
@@ -53,6 +57,13 @@ class ShiftType(Document):
                 msg=_("Start time and end time cannot be same."),
             )
 
+<<<<<<< HEAD
+		group_key = lambda x: (x["employee"], x["shift_start"])  # noqa
+		for key, group in groupby(sorted(logs, key=group_key), key=group_key):
+			single_shift_logs = list(group)
+			attendance_date = key[1].date()
+			employee = key[0]
+=======
     def validate_circular_shift(
         self, start_time: datetime.time, end_time: datetime.time
     ):
@@ -67,6 +78,7 @@ class ShiftType(Document):
                     "Please reduce {0} to avoid shift time overlapping with itself"
                 ).format(frappe.bold(max_label)),
             )
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
 
     def get_shift_start_and_shift_end(
         self, start_time: datetime.time, end_time: datetime.time
@@ -98,6 +110,20 @@ class ShiftType(Document):
         }
         return max(labels, key=labels.get)
 
+<<<<<<< HEAD
+		# commit after processing checkin logs to avoid losing progress
+		frappe.db.commit()  # nosemgrep
+
+		assigned_employees = self.get_assigned_employees(self.process_attendance_after, True)
+
+		# mark absent in batches & commit to avoid losing progress since this tries to process remaining attendance
+		# right from "Process Attendance After" to "Last Sync of Checkin"
+		for batch in create_batch(assigned_employees, EMPLOYEE_CHUNK_SIZE):
+			for employee in batch:
+				self.mark_absent_for_dates_with_no_attendance(employee)
+
+			frappe.db.commit()  # nosemgrep
+=======
     def validate_unlinked_logs(self):
         if self.is_field_modified("start_time") and self.unlinked_checkins_exist():
             frappe.throw(
@@ -106,6 +132,7 @@ class ShiftType(Document):
                     "Mark attendance for existing check-in/out logs before changing shift settings"
                 ),
             )
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
 
     def is_field_modified(self, fieldname):
         return not self.is_new() and self.has_value_changed(fieldname)
@@ -245,6 +272,13 @@ class ShiftType(Document):
                 out_time,
             )
 
+<<<<<<< HEAD
+		# skip marking absent on holidays
+		holiday_list = self.get_holiday_list(employee)
+		holiday_dates = get_holiday_dates_between(holiday_list, start_date, end_date)
+		# skip dates with attendance
+		marked_attendance_dates = self.get_marked_attendance_dates_between(employee, start_date, end_date)
+=======
         if (
             self.working_hours_threshold_for_half_day
             and total_working_hours < self.working_hours_threshold_for_half_day
@@ -257,6 +291,7 @@ class ShiftType(Document):
                 in_time,
                 out_time,
             )
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
 
         return "Present", total_working_hours, late_entry, early_exit, in_time, out_time
 
@@ -289,12 +324,32 @@ class ShiftType(Document):
                     }
                 ).insert(ignore_permissions=True)
 
+<<<<<<< HEAD
+	def get_marked_attendance_dates_between(self, employee: str, start_date: str, end_date: str) -> list[str]:
+		Attendance = frappe.qb.DocType("Attendance")
+		return (
+			frappe.qb.from_(Attendance)
+			.select(Attendance.attendance_date)
+			.where(
+				(Attendance.employee == employee)
+				& (Attendance.docstatus < 2)
+				& (Attendance.attendance_date.between(start_date, end_date))
+				& ((Attendance.shift.isnull()) | (Attendance.shift == self.name))
+			)
+		).run(pluck=True)
+
+	def get_assigned_employees(self, from_date=None, consider_default_shift=False) -> list[str]:
+		filters = {"shift_type": self.name, "docstatus": "1", "status": "Active"}
+		if from_date:
+			filters["start_date"] = (">=", from_date)
+=======
     def get_dates_for_attendance(self, employee: str) -> list[str]:
         start_date, end_date = self.get_start_and_end_dates(employee)
 
         # no shift assignment found, no need to process absent attendance records
         if start_date is None:
             return []
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
 
         date_range = get_date_range(start_date, end_date)
 
@@ -310,6 +365,9 @@ class ShiftType(Document):
             set(date_range) - set(holiday_dates) - set(marked_attendance_dates)
         )
 
+<<<<<<< HEAD
+		return list(set(assigned_employees) - set(inactive_employees))
+=======
     def get_start_and_end_dates(self, employee):
         """Returns start and end dates for checking attendance and marking absent
         return: start date = max of `process_attendance_after` and DOJ
@@ -318,6 +376,7 @@ class ShiftType(Document):
         date_of_joining, relieving_date, employee_creation = frappe.get_cached_value(
             "Employee", employee, ["date_of_joining", "relieving_date", "creation"]
         )
+>>>>>>> 06f1d63e79d7dbee4dbf67f5025162345040d27d
 
         if not date_of_joining:
             date_of_joining = employee_creation.date()

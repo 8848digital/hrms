@@ -179,23 +179,23 @@ frappe.ui.form.on("Interview", {
 		d.get_close_btn().show();
 	},
 
-	get_fields_for_feedback: async function () {
-		return new Promise((resolve, reject) => {
-			frappe.model.with_doctype("Skill Assessment", () => {
-				let meta = frappe.get_meta("Skill Assessment");
-				let fields = meta.fields.map((field) => {
-					return {
-						fieldtype: field.fieldtype,
-						fieldname: field.fieldname,
-						label: field.label,
-						in_list_view: field.in_list_view,
-						reqd: field.reqd,
-						options: field.options,
-					};
-				});
-				resolve(fields);
-			});
-		});
+	get_fields_for_feedback: function () {
+		return [
+			{
+				fieldtype: "Link",
+				fieldname: "skill",
+				options: "Skill",
+				in_list_view: 1,
+				label: __("Skill"),
+			},
+			{
+				fieldtype: "Rating",
+				fieldname: "rating",
+				label: __("Rating"),
+				in_list_view: 1,
+				reqd: 1,
+			},
+		];
 	},
 
 	interview_round: function (frm) {

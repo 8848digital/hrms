@@ -24,7 +24,7 @@ from hrms.tests.test_utils import create_employee_grade
 test_dependencies = ["Fiscal Year"]
 
 
-class TestSalaryStructure(FrappeTestCase):
+class TestSalaryStructure(IntegrationTestCase):
 	def setUp(self):
 		for dt in ["Salary Slip", "Salary Structure", "Salary Structure Assignment"]:
 			frappe.db.sql("delete from `tab%s`" % dt)

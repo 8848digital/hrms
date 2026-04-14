@@ -38,6 +38,7 @@ frappe.ui.form.on("Leave Encashment", {
 				filters: {
 					company: frm.doc.company,
 					account_currency: ["in", currencies],
+					account_type: "Payable",
 				},
 			};
 		});
@@ -111,6 +112,19 @@ frappe.ui.form.on("Leave Encashment", {
 	make_payment_entry: function (frm) {
 		return frappe.call({
 			method:"hrms.overrides.employee_payment_entry.get_payment_entry_for_employee",
+			args: {
+				dt: frm.doc.doctype,
+				dn: frm.doc.name,
+			},
+			callback: function (r) {
+				var doclist = frappe.model.sync(r.message);
+				frappe.set_route("Form", doclist[0].doctype, doclist[0].name);
+			},
+		});
+	},
+	make_payment_entry: function (frm) {
+		return frappe.call({
+			method: "hrms.overrides.employee_payment_entry.get_payment_entry_for_employee",
 			args: {
 				dt: frm.doc.doctype,
 				dn: frm.doc.name,

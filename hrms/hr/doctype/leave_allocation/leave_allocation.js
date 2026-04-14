@@ -103,6 +103,7 @@ frappe.ui.form.on("Leave Allocation", {
 						});
 					},
 				});
+				dialog.fields_dict.new_leaves.set_value(monthly_earned_leave);
 				dialog.fields_dict.from_date.datepicker?.update({
 					minDate: frappe.datetime.str_to_obj(frm.doc.from_date),
 					maxDate: frappe.datetime.str_to_obj(frm.doc.to_date),

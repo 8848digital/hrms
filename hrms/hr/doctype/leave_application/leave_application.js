@@ -161,6 +161,7 @@ frappe.ui.form.on("Leave Application", {
 	},
 
 	to_date: function (frm) {
+		frm.events.validate_from_to_date(frm, "from_date");
 		frm.events.validate_from_to_date(frm, "to_date");
 		frm.trigger("make_dashboard");
 		frm.trigger("half_day_datepicker");

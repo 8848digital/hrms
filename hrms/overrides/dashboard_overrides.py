@@ -5,84 +5,64 @@ from frappe import _
 
 
 def get_dashboard_for_employee(data):
-    data["transactions"].extend(
-        [
-            {
-                "label": _("Attendance"),
-                "items": ["Attendance", "Attendance Request", "Employee Checkin"],
-            },
-            {
-                "label": _("Leave"),
-                "items": [
-                    "Leave Application",
-                    "Leave Allocation",
-                    "Leave Policy Assignment",
-                ],
-            },
-            {
-                "label": _("Lifecycle"),
-                "items": [
-                    "Employee Onboarding",
-                    "Employee Transfer",
-                    "Employee Promotion",
-                    "Employee Grievance",
-                ],
-            },
-            {
-                "label": _("Employee Exit"),
-                "items": [
-                    "Employee Separation",
-                    "Exit Interview",
-                    "Full and Final Statement",
-                    "Salary Withholding",
-                ],
-            },
-            {"label": _("Shift"), "items": ["Shift Request", "Shift Assignment"]},
-            {
-                "label": _("Expense"),
-                "items": ["Expense Claim", "Travel Request", "Employee Advance"],
-            },
-            {
-                "label": _("Benefit"),
-                "items": ["Employee Benefit Application", "Employee Benefit Claim"],
-            },
-            {
-                "label": _("Payroll"),
-                "items": [
-                    "Salary Structure Assignment",
-                    "Salary Slip",
-                    "Additional Salary",
-                    "Timesheet",
-                    "Employee Incentive",
-                    "Retention Bonus",
-                    "Bank Account",
-                ],
-            },
-            {
-                "label": _("Training"),
-                "items": [
-                    "Training Event",
-                    "Training Result",
-                    "Training Feedback",
-                    "Employee Skill Map",
-                ],
-            },
-            {"label": _("Evaluation"), "items": ["Appraisal"]},
-        ]
-    )
+	data["transactions"].extend(
+		[
+			{"label": _("Attendance"), "items": ["Attendance", "Attendance Request", "Employee Checkin"]},
+			{
+				"label": _("Leave"),
+				"items": ["Leave Application", "Leave Allocation", "Leave Policy Assignment"],
+			},
+			{
+				"label": _("Lifecycle"),
+				"items": [
+					"Employee Onboarding",
+					"Employee Transfer",
+					"Employee Promotion",
+					"Employee Grievance",
+				],
+			},
+			{
+				"label": _("Exit"),
+				"items": [
+					"Employee Separation",
+					"Exit Interview",
+					"Full and Final Statement",
+					"Salary Withholding",
+				],
+			},
+			{"label": _("Shift"), "items": ["Shift Request", "Shift Assignment"]},
+			{"label": _("Expense"), "items": ["Expense Claim", "Travel Request", "Employee Advance"]},
+			{"label": _("Benefit"), "items": ["Employee Benefit Application", "Employee Benefit Claim"]},
+			{
+				"label": _("Payroll"),
+				"items": [
+					"Salary Structure Assignment",
+					"Salary Slip",
+					"Additional Salary",
+					"Timesheet",
+					"Employee Incentive",
+					"Retention Bonus",
+					"Bank Account",
+				],
+			},
+			{
+				"label": _("Training"),
+				"items": ["Training Event", "Training Result", "Training Feedback", "Employee Skill Map"],
+			},
+			{"label": _("Evaluation"), "items": ["Appraisal"]},
+		]
+	)
 
-    data["non_standard_fieldnames"].update(
-        {"Bank Account": "party", "Employee Grievance": "raised_by"}
-    )
-    data.update(
-        {
-            "heatmap": True,
-            "heatmap_message": _("This is based on the attendance of this Employee"),
-            "fieldname": "employee",
-            "method": "hrms.overrides.employee_master.get_timeline_data",
-        }
-    )
-    return data
+	data["non_standard_fieldnames"].update({"Bank Account": "party", "Employee Grievance": "raised_by"})
+	data.update(
+		{
+			"heatmap": True,
+			"heatmap_message": _("This is based on the attendance of this Employee"),
+			"fieldname": "employee",
+			"method": "hrms.overrides.employee_master.get_timeline_data",
+		}
+	)
+	return data
 
 
 def get_dashboard_for_holiday_list(data):
@@ -104,13 +84,13 @@ def get_dashboard_for_project(data):
         {"label": _("Claims"), "items": ["Expense Claim"]},
     )
 
-    return data
+	return data
 
 
 def get_dashboard_for_bank_account(data):
-    for section in data["transactions"]:
-        if section.get("label") == "Transactions":
-            section["items"].append("Payroll Entry")
-            break
+	for section in data["transactions"]:
+		if section.get("label") == "Transactions":
+			section["items"].append("Payroll Entry")
+			break
 
-    return data
+	return data

@@ -211,7 +211,7 @@ frappe.ui.form.on("Employee Attendance Tool", {
 				data: data,
 				dynamicRowHeight: true,
 				inlineFilters: true,
-				layout: "fixed",
+				layout: "fluid",
 				cellHeight: 35,
 				noDataMessage: __("No Data"),
 				disableReorderColumn: true,
@@ -224,14 +224,58 @@ frappe.ui.form.on("Employee Attendance Tool", {
 			frm.marked_emp_datatable.refresh(data, columns);
 		}
 	},
+
+	get_columns_for_marked_attendance_table(frm) {
+		return [
+			{
+				name: "employee",
+				id: "employee",
+				content: __("Employee"),
+				editable: false,
+				sortable: false,
+				focusable: false,
+				dropdown: false,
+				align: "left",
+				width: 350,
+			},
+			{
+				name: "status",
+				id: "status",
+				content: __("Status"),
+				editable: false,
+				sortable: false,
+				focusable: false,
+				dropdown: false,
+				align: "left",
+				width: 150,
+				format: (value) => {
+					if (value == "Present" || value == "Work From Home")
+						return `<span style="color:green">${__(value)}</span>`;
+					else if (value == "Absent")
+						return `<span style="color:red">${__(value)}</span>`;
+					else if (value == "Half Day")
+						return `<span style="color:orange">${__(value)}</span>`;
+					else if (value == "On Leave")
+						return `<span style="color:#318AD8">${__(value)}</span>`;
+				},
+			},
+		];
+	},
+
 	set_primary_action(frm) {
 		get_employees_button = this.cur_frm.fields_dict.get_employees.$input;
 		get_employees_button.removeClass("btn-primary").addClass("btn-default");
 		frm.page.set_primary_action(__("Mark Attendance"), () => {
-			const employees_to_mark_full_day =
-				frm.get_field("unmarked_employees_multicheck")?.get_checked_options() || [];
-			const employees_to_mark_half_day =
-				frm.get_field("half_marked_employees_multicheck")?.get_checked_options() || [];
+			if (frm.employees.length === 0) {
+				frappe.msgprint({
+					message: __(
+						"Attendance for all the employees under this criteria has been marked already.",
+					),
+					title: __("Attendance Marked"),
+					indicator: "green",
+				});
+				return;
+			}
 
 			if (
 				employees_to_mark_full_day.length === 0 &&
@@ -249,20 +293,37 @@ frappe.ui.form.on("Employee Attendance Tool", {
 					title: __("Mandatory"),
 				});
 			}
-			if (employees_to_mark_half_day.length > 0 && !frm.doc.half_day_status) {
-				frappe.throw({
-					message: __("Please select half day attendance status."),
-					title: __("Mandatory"),
-				});
-			}
-			if (employees_to_mark_full_day.length > 0 || employees_to_mark_half_day.length > 0) {
-				frm.events.mark_full_day_attendance(
-					frm,
-					employees_to_mark_full_day,
-					employees_to_mark_half_day,
-				);
-			}
+
+			frm.trigger("mark_attendance");
 		});
+	},
+
+	mark_attendance(frm) {
+		const marked_employees = frm.employees_multicheck.get_checked_options();
+
+		frappe
+			.call({
+				method: "hrms.hr.doctype.employee_attendance_tool.employee_attendance_tool.mark_employee_attendance",
+				args: {
+					employee_list: marked_employees,
+					status: frm.doc.status,
+					date: frm.doc.date,
+					late_entry: frm.doc.late_entry,
+					early_exit: frm.doc.early_exit,
+					shift: frm.doc.shift,
+				},
+				freeze: true,
+				freeze_message: __("Marking Attendance"),
+			})
+			.then((r) => {
+				if (!r.exc) {
+					frappe.show_alert({
+						message: __("Attendance marked successfully"),
+						indicator: "green",
+					});
+					frm.refresh();
+				}
+			});
 	},
 
 	mark_full_day_attendance(frm, employees_to_mark_full_day, employees_to_mark_half_day) {

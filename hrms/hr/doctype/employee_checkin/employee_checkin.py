@@ -206,6 +206,17 @@ def bulk_fetch_shift(checkins: list[str] | str) -> None:
         doc.save()
 
 
+@frappe.whitelist()
+def bulk_fetch_shift(checkins: list[str] | str) -> None:
+	if isinstance(checkins, str):
+		checkins = frappe.json.loads(checkins)
+	for d in checkins:
+		doc = frappe.get_doc("Employee Checkin", d)
+		doc.fetch_shift()
+		doc.flags.ignore_validate = True
+		doc.save()
+
+
 def mark_attendance_and_link_log(
     logs,
     attendance_status,

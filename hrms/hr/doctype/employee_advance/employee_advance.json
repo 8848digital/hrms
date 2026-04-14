@@ -172,7 +172,7 @@
   },
   {
    "allow_on_submit": 1,
-   "description": "Amount scheduled for deduction via salary",
+   "description": "Amount returned by the employee after the advance is paid",
    "fieldname": "return_amount",
    "fieldtype": "Currency",
    "label": "Returned Amount",

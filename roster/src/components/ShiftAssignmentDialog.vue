@@ -426,6 +426,20 @@ const shiftSchedule = createResource({
 	},
 });
 
+const shiftTypes = createListResource({
+	doctype: "Shift Type",
+	fields: ["name"],
+	auto: true,
+	transform: (data: { name: string }[]) => data.map((shiftType) => shiftType.name),
+});
+
+const shiftLocations = createListResource({
+	doctype: "Shift Location",
+	fields: ["name"],
+	auto: true,
+	transform: (data: { name: string }[]) => data.map((shiftLocation) => shiftLocation.name),
+});
+
 const shiftAssignments = createListResource({
 	doctype: "Shift Assignment",
 	insert: {

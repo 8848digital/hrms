@@ -20,6 +20,8 @@ from frappe.utils import (
 	get_link_to_form,
 	get_quarter_ending,
 	get_quarter_start,
+	get_year_ending,
+	get_year_start,
 	getdate,
 	month_diff,
 	rounded,
@@ -166,8 +168,10 @@ class LeavePolicyAssignment(Document):
 				is_earned_leave=False,
 			)
 
-		# leave allocation should not exceed annual allocation as per policy assignment
-		if new_leaves_allocated > annual_allocation:
+		# leave allocation should not exceed annual allocation as per policy assignment expect when allocation is of earned type and yearly
+		if new_leaves_allocated > annual_allocation and not (
+			leave_details.is_earned_leave and leave_details.earned_leave_frequency == "Yearly"
+		):
 			new_leaves_allocated = annual_allocation
 
 		return flt(new_leaves_allocated, precision)

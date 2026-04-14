@@ -66,7 +66,7 @@ TAX_COMPONENTS_BY_COMPANY = "tax_components_by_company"
 class SalarySlip(TransactionBase):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.default_series = f"Sal Slip/{self.employee}/.#####"
+		self.series = f"Sal Slip/{self.employee}/.#####"
 		self.whitelisted_globals = {
 			"int": int,
 			"float": float,
@@ -510,19 +510,15 @@ class SalarySlip(TransactionBase):
 
 			consider_unmarked_attendance_as = payroll_settings.consider_unmarked_attendance_as or "Present"
 
-			if payroll_settings.payroll_based_on == "Attendance":
-				if consider_unmarked_attendance_as == "Absent":
-					unmarked_days = self.get_unmarked_days(
-						payroll_settings.include_holidays_in_total_working_days, holidays
-					)
-					self.absent_days += unmarked_days  # will be treated as absent
-					self.payment_days -= unmarked_days
-				half_absent_days = self.get_half_absent_days(
-					consider_marked_attendance_on_holidays,
-					holidays,
+			if (
+				payroll_settings.payroll_based_on == "Attendance"
+				and consider_unmarked_attendance_as == "Absent"
+			):
+				unmarked_days = self.get_unmarked_days(
+					payroll_settings.include_holidays_in_total_working_days, holidays
 				)
-				self.absent_days += half_absent_days * daily_wages_fraction_for_half_day
-				self.payment_days -= half_absent_days * daily_wages_fraction_for_half_day
+				self.absent_days += unmarked_days  # will be treated as absent
+				self.payment_days -= unmarked_days
 		else:
 			self.payment_days = 0
 
@@ -787,13 +783,6 @@ class SalarySlip(TransactionBase):
 		if not row_exists:
 			wages_row = get_salary_component_data(salary_component)
 			wages_amount = self.hour_rate * self.total_working_hours
-
-			self.update_component_row(
-				wages_row,
-				wages_amount,
-				"earnings",
-				default_amount=wages_amount,
-			)
 
 	def set_salary_structure_assignment(self):
 		self._salary_structure_assignment = frappe.db.get_value(
@@ -1347,6 +1336,9 @@ class SalarySlip(TransactionBase):
 			else:
 				self.other_deduction_components.append(d.salary_component)
 
+		if self.handle_additional_salary_tax_component():
+			return
+
 		# consider manually added tax component
 		if not tax_components:
 			tax_components = [
@@ -1811,7 +1803,9 @@ class SalarySlip(TransactionBase):
 		amount, additional_amount = row.amount, row.additional_amount
 		timesheet_component = self._salary_structure_doc.salary_component
 
-		if (
+		if not row.additional_salary and not row.default_amount:
+			amount, additional_amount = amount, additional_amount
+		elif (
 			self.salary_structure
 			and cint(row.depends_on_payment_days)
 			and cint(self.total_working_days)

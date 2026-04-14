@@ -14,9 +14,11 @@
 
 <div align="center" style="max-height: 40px;">
 	<a href="https://frappecloud.com/hrms/signup">
-		<img src=".github/try-on-f-cloud-button.svg" height="40">
+		<img src=".github/try-on-f-cloud-button.svg" height="50">
 	</a>
 </div>
+
+
 
 </div>
 

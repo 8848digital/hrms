@@ -31,6 +31,11 @@ def set_loan_repayment(doc: "SalarySlip"):
 
 	if not doc.get("loans", []):
 		loan_details = _get_loan_details(doc)
+		if loan_details:
+			process_loan_interest_accruals(loan_details, doc.end_date)
+
+		for loan in loan_details:
+			amounts = calculate_amounts(loan.name, doc.end_date, "Regular Payment")
 
 		for loan in loan_details:
 			amounts = calculate_amounts(loan.name, doc.end_date)
@@ -51,9 +56,8 @@ def set_loan_repayment(doc: "SalarySlip"):
 		doc.set("loans", [])
 
 	for payment in doc.get("loans", []):
-		amounts = calculate_amounts(payment.loan, doc.end_date)
-		total_amount = amounts["payable_amount"]
-
+		amounts = calculate_amounts(payment.loan, doc.end_date, "Regular Payment")
+		total_amount = amounts["interest_amount"] + amounts["payable_principal_amount"]
 		if payment.total_payment > total_amount:
 			frappe.throw(
 				_(
@@ -71,7 +75,7 @@ def set_loan_repayment(doc: "SalarySlip"):
 		doc.total_loan_repayment += payment.total_payment
 
 
-def _get_loan_details(doc: "SalarySlip") -> dict[str, Any]:
+def _get_loan_details(doc: "SalarySlip") -> dict[str, str | bool]:
 	loan_details = frappe.get_all(
 		"Loan",
 		fields=[
@@ -91,6 +95,18 @@ def _get_loan_details(doc: "SalarySlip") -> dict[str, Any]:
 		},
 	)
 	return loan_details
+
+
+def process_loan_interest_accruals(loan_details: dict[str, str | bool], posting_date: str):
+	from lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual import (
+		process_loan_interest_accrual_for_term_loans,
+	)
+
+	for loan in loan_details:
+		if loan.is_term_loan:
+			process_loan_interest_accrual_for_term_loans(
+				posting_date=posting_date, loan_product=loan.loan_product, loan=loan.name
+			)
 
 
 @if_lending_app_installed

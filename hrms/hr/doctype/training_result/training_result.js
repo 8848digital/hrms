@@ -7,7 +7,11 @@ frappe.ui.form.on("Training Result", {
 	},
 
 	training_event: function (frm) {
-		if (frm.doc.training_event && !frm.doc.docstatus) {
+		frm.trigger("training_event");
+	},
+
+	training_event: function (frm) {
+		if (frm.doc.training_event && !frm.doc.docstatus && !frm.doc.employees) {
 			frappe.call({
 				method: "hrms.hr.doctype.training_result.training_result.get_employees",
 				args: {
