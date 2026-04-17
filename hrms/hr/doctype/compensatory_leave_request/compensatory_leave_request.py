@@ -19,6 +19,27 @@ from hrms.hr.utils import (
 
 
 class CompensatoryLeaveRequest(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		amended_from: DF.Link | None
+		department: DF.Link | None
+		employee: DF.Link
+		employee_name: DF.Data | None
+		half_day: DF.Check
+		half_day_date: DF.Date | None
+		leave_allocation: DF.Link | None
+		leave_type: DF.Link | None
+		reason: DF.SmallText
+		work_end_date: DF.Date
+		work_from_date: DF.Date
+	# end: auto-generated types
+
 	def validate(self):
 		validate_active_employee(self.employee)
 		validate_dates(self, self.work_from_date, self.work_end_date)
@@ -36,46 +57,26 @@ class CompensatoryLeaveRequest(Document):
 	def validate_attendance(self):
 		attendance_records = frappe.get_all(
 			"Attendance",
-			filters={
-				"attendance_date": [
-					"between",
-					(self.work_from_date, self.work_end_date),
-				],
-				"status": ("in", ["Present", "Work From Home", "Half Day"]),
-				"docstatus": 1,
-				"employee": self.employee,
-			},
+			filters=[
+				["attendance_date", "between", [self.work_from_date, self.work_end_date]],
+				["status", "in", ["Present", "Work From Home", "Half Day"]],
+				["docstatus", "=", 1],
+				["employee", "=", self.employee],
+			],
 			fields=["attendance_date", "status"],
 		)
 
-		half_days = [
-			entry.attendance_date
-			for entry in attendance_records
-			if entry.status == "Half Day"
-		]
+		half_days = [entry.attendance_date for entry in attendance_records if entry.status == "Half Day"]
 
-		if half_days and (
-			not self.half_day or getdate(self.half_day_date) not in half_days
-		):
+		if half_days and (not self.half_day or getdate(self.half_day_date) not in half_days):
 			frappe.throw(
 				_(
 					"You were only present for Half Day on {}. Cannot apply for a full day compensatory leave"
-				).format(
-					", ".join(
-						[frappe.bold(format_date(half_day)) for half_day in half_days]
-					)
-				)
+				).format(", ".join([frappe.bold(format_date(half_day)) for half_day in half_days]))
 			)
 
-		if (
-			len(attendance_records)
-			< date_diff(self.work_end_date, self.work_from_date) + 1
-		):
-			frappe.throw(
-				_(
-					"You are not present all day(s) between compensatory leave request days"
-				)
-			)
+		if len(attendance_records) < date_diff(self.work_end_date, self.work_from_date) + 1:
+			frappe.throw(_("You are not present all day(s) between compensatory leave request days"))
 
 	def validate_holidays(self):
 		holidays = get_holiday_dates_for_employee(self.employee, self.work_from_date, self.work_end_date)
@@ -99,7 +100,7 @@ class CompensatoryLeaveRequest(Document):
 		comp_leave_valid_from = add_days(self.work_end_date, 1)
 		leave_period = get_leave_period(comp_leave_valid_from, comp_leave_valid_from, company)
 		if leave_period:
-			leave_allocation = self.get_existing_allocation_for_period(leave_period)
+			leave_allocation = self.get_existing_allocation(comp_leave_valid_from)
 			if leave_allocation:
 				leave_allocation.new_leaves_allocated += date_difference
 				leave_allocation.validate()
@@ -124,27 +125,6 @@ class CompensatoryLeaveRequest(Document):
 			)
 			frappe.throw(msg, title=_("No Leave Period Found"))
 
-			else:
-				leave_allocation = self.create_leave_allocation(
-					leave_period, date_difference
-				)
-			self.db_set("leave_allocation", leave_allocation.name)
-		else:
-			comp_leave_valid_from = frappe.bold(format_date(comp_leave_valid_from))
-			msg = _("This compensatory leave will be applicable from {0}.").format(
-				comp_leave_valid_from
-			)
-			msg += " " + _(
-				"Currently, there is no {0} leave period for this date to create/update leave allocation."
-			).format(frappe.bold(_("active")))
-			msg += "<br><br>" + _(
-				"Please create a new {0} for the date {1} first."
-			).format(
-				f"""<a href='{get_url_to_list("Leave Period")}'>Leave Period</a>""",
-				comp_leave_valid_from,
-			)
-			frappe.throw(msg, title=_("No Leave Period Found"))
-
 	def on_cancel(self):
 		if self.leave_allocation:
 			date_difference = date_diff(self.work_end_date, self.work_from_date) + 1
@@ -153,26 +133,18 @@ class CompensatoryLeaveRequest(Document):
 			leave_allocation = frappe.get_doc("Leave Allocation", self.leave_allocation)
 			if leave_allocation:
 				leave_allocation.new_leaves_allocated -= date_difference
-				if leave_allocation.new_leaves_allocated - date_difference <= 0:
+				if leave_allocation.new_leaves_allocated < 0:
 					leave_allocation.new_leaves_allocated = 0
 				leave_allocation.validate()
-				leave_allocation.db_set(
-					"new_leaves_allocated", leave_allocation.total_leaves_allocated
-				)
-				leave_allocation.db_set(
-					"total_leaves_allocated", leave_allocation.total_leaves_allocated
-				)
+				leave_allocation.db_set("new_leaves_allocated", leave_allocation.total_leaves_allocated)
+				leave_allocation.db_set("total_leaves_allocated", leave_allocation.total_leaves_allocated)
 
 				# create reverse entry on cancelation
 				create_additional_leave_ledger_entry(
-					leave_allocation,
-					date_difference * -1,
-					add_days(self.work_end_date, 1),
+					leave_allocation, date_difference * -1, add_days(self.work_end_date, 1)
 				)
 
-	def get_existing_allocation(
-		self, comp_leave_valid_from: datetime.date
-	) -> dict | None:
+	def get_existing_allocation(self, comp_leave_valid_from: datetime.date) -> dict | None:
 		leave_allocation = frappe.db.get_all(
 			"Leave Allocation",
 			filters={
@@ -189,9 +161,7 @@ class CompensatoryLeaveRequest(Document):
 			return frappe.get_doc("Leave Allocation", leave_allocation[0].name)
 
 	def create_leave_allocation(self, leave_period, date_difference):
-		is_carry_forward = frappe.db.get_value(
-			"Leave Type", self.leave_type, "is_carry_forward"
-		)
+		is_carry_forward = frappe.db.get_value("Leave Type", self.leave_type, "is_carry_forward")
 		allocation = frappe.get_doc(
 			dict(
 				doctype="Leave Allocation",
