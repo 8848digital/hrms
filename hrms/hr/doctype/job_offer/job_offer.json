@@ -32,6 +32,7 @@
    "fieldname": "job_applicant",
    "fieldtype": "Link",
    "label": "Job Applicant",
+   "link_filters": "[[\"Job Applicant\",\"status\",\"!=\",\"Rejected\"]]",
    "options": "Job Applicant",
    "print_hide": 1,
    "reqd": 1
@@ -66,7 +67,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Awaiting Response\nAccepted\nRejected",
+   "options": "Awaiting Response\nAccepted\nRejected\nCancelled",
    "print_hide": 1
   },
   {
@@ -169,10 +170,11 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2024-07-08 15:53:30.761581",
+ "modified": "2026-04-09 18:26:35.285541",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Job Offer",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -181,8 +183,17 @@
    "create": 1,
    "delete": 1,
    "email": 1,
-   "export": 1,
-   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -190,8 +201,24 @@
    "share": 1,
    "submit": 1,
    "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "show_name_in_global_search": 1,
  "sort_field": "creation",
  "sort_order": "DESC",
