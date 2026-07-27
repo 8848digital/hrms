@@ -15,27 +15,13 @@ frappe.ui.form.on("Employee Advance", {
 			if (!frm.doc.employee) {
 				frappe.msgprint(__("Please select employee first"));
 			}
-			let company_currency = erpnext.get_currency(frm.doc.company);
-			let currencies = [company_currency];
-			if (frm.doc.currency && frm.doc.currency != company_currency) {
-				currencies.push(frm.doc.currency);
-			}
-
 			return {
 				filters: {
 					root_type: "Asset",
 					is_group: 0,
 					company: frm.doc.company,
-					account_currency: ["in", currencies],
+					account_currency: frm.doc.currency,
 					account_type: "Receivable",
-				},
-			};
-		});
-
-		frm.set_query("salary_component", function () {
-			return {
-				filters: {
-					type: "Deduction",
 				},
 			};
 		});
@@ -45,7 +31,8 @@ frappe.ui.form.on("Employee Advance", {
 		if (
 			frm.doc.docstatus === 1 &&
 			flt(frm.doc.paid_amount) < flt(frm.doc.advance_amount) &&
-			frappe.model.can_create("Payment Entry")
+			frappe.model.can_create("Payment Entry") &&
+			!(frm.doc.repay_unclaimed_amount_from_salary == 1 && frm.doc.paid_amount)
 		) {
 			frm.add_custom_button(
 				__("Payment"),
@@ -54,7 +41,9 @@ frappe.ui.form.on("Employee Advance", {
 				},
 				__("Create"),
 			);
-		} else if (
+		}
+
+		if (
 			frm.doc.docstatus === 1 &&
 			flt(frm.doc.claimed_amount) < flt(frm.doc.paid_amount) - flt(frm.doc.return_amount) &&
 			frappe.model.can_create("Expense Claim")
@@ -67,6 +56,7 @@ frappe.ui.form.on("Employee Advance", {
 				__("Create"),
 			);
 		}
+		frm.trigger("update_fields_label");
 
 		if (
 			frm.doc.docstatus === 1 &&
@@ -96,6 +86,14 @@ frappe.ui.form.on("Employee Advance", {
 				);
 			}
 		}
+		if (frm.doc.status === "Returned") {
+			frm.dashboard.clear_headline();
+			return;
+		}
+
+		if (frm.doc.docstatus === 1) {
+			frm.trigger("render_employee_advance_return_banner");
+		}
 	},
 
 	make_deduction_via_additional_salary: function (frm) {
@@ -112,12 +110,8 @@ frappe.ui.form.on("Employee Advance", {
 	},
 
 	make_payment_entry: function (frm) {
-		let method = "hrms.overrides.employee_payment_entry.get_payment_entry_for_employee";
-		if (frm.doc.__onload && frm.doc.__onload.make_payment_via_journal_entry) {
-			method = "hrms.hr.doctype.employee_advance.employee_advance.make_bank_entry";
-		}
 		return frappe.call({
-			method: method,
+			method: "hrms.overrides.employee_payment_entry.get_payment_entry_for_employee",
 			args: {
 				dt: frm.doc.doctype,
 				dn: frm.doc.name,
@@ -133,13 +127,7 @@ frappe.ui.form.on("Employee Advance", {
 		return frappe.call({
 			method: "hrms.hr.doctype.expense_claim.expense_claim.get_expense_claim",
 			args: {
-				employee_name: frm.doc.employee,
-				company: frm.doc.company,
-				employee_advance_name: frm.doc.name,
-				posting_date: frm.doc.posting_date,
-				paid_amount: frm.doc.paid_amount,
-				claimed_amount: frm.doc.claimed_amount,
-				return_amount: frm.doc.return_amount,
+				employee_advance: frm.doc.name,
 			},
 			callback: function (r) {
 				const doclist = frappe.model.sync(r.message);
@@ -159,7 +147,6 @@ frappe.ui.form.on("Employee Advance", {
 				advance_account: frm.doc.advance_account,
 				mode_of_payment: frm.doc.mode_of_payment,
 				currency: frm.doc.currency,
-				exchange_rate: frm.doc.exchange_rate,
 			},
 			callback: function (r) {
 				const doclist = frappe.model.sync(r.message);
@@ -169,56 +156,59 @@ frappe.ui.form.on("Employee Advance", {
 	},
 
 	employee: function (frm) {
-		if (frm.doc.employee) frm.trigger("get_employee_currency");
-	},
-
-	get_employee_currency: function (frm) {
-		frappe.db.get_value(
-			"Salary Structure Assignment",
-			{ employee: frm.doc.employee, docstatus: 1 },
-			"currency",
-			(r) => {
-				if (r.currency) frm.set_value("currency", r.currency);
-				else frm.set_value("currency", erpnext.get_currency(frm.doc.company));
-				frm.refresh_fields();
-			},
-		);
-	},
-
-	currency: function (frm) {
-		if (frm.doc.currency) {
-			var from_currency = frm.doc.currency;
-			var company_currency;
-			if (!frm.doc.company) {
-				company_currency = erpnext.get_currency(frappe.defaults.get_default("Company"));
-			} else {
-				company_currency = erpnext.get_currency(frm.doc.company);
-			}
-			if (from_currency != company_currency) {
-				frm.events.set_exchange_rate(frm, from_currency, company_currency);
-			} else {
-				frm.set_value("exchange_rate", 1.0);
-				frm.set_df_property("exchange_rate", "hidden", 1);
-				frm.set_df_property("exchange_rate", "description", "");
-			}
-			frm.refresh_fields();
+		if (frm.doc.employee) {
+			frm.trigger("update_fields_label");
 		}
 	},
 
-	set_exchange_rate: function (frm, from_currency, company_currency) {
+	update_fields_label: function (frm) {
+		var company_currency = erpnext.get_currency(frm.doc.company);
+		if (frm.doc.currency != company_currency) {
+			frm.set_currency_labels(["paid_amount"], frm.doc.currency);
+			frm.set_currency_labels(["base_paid_amount"], company_currency);
+		}
+		frm.toggle_display("base_paid_amount", frm.doc.currency != company_currency);
+		frm.refresh_fields();
+	},
+
+	render_employee_advance_return_banner(frm) {
 		frappe.call({
-			method: "erpnext.setup.utils.get_exchange_rate",
+			method: "hrms.hr.doctype.employee_advance.employee_advance.get_employee_advance_return",
 			args: {
-				from_currency: from_currency,
-				to_currency: company_currency,
+				employee_advance: frm.doc.name,
 			},
-			callback: function (r) {
-				frm.set_value("exchange_rate", flt(r.message));
-				frm.set_df_property("exchange_rate", "hidden", 0);
-				frm.set_df_property(
-					"exchange_rate",
-					"description",
-					"1 " + frm.doc.currency + " = [?] " + company_currency,
+			error() {
+				frm.dashboard.clear_headline();
+			},
+			callback(r) {
+				const advance_return_data = r.message || {};
+
+				if (!advance_return_data.has_return_scheduled) {
+					frm.dashboard.clear_headline();
+					return;
+				}
+
+				const filters = {
+					ref_doctype: "Employee Advance",
+					ref_docname: frm.doc.name,
+					docstatus: 1,
+				};
+
+				const url =
+					"/app/list/additional-salary?" + new URLSearchParams(filters).toString();
+
+				frm.dashboard.set_headline(
+					__(
+						"Employee Advance return is scheduled via Additional Salary: {0} | <a href='{1}'> {2} </a>",
+						[
+							format_currency(
+								advance_return_data.total_return_scheduled,
+								frm.doc.currency,
+							),
+							url,
+							__("View Additional Salary entries").bold(),
+						],
+					),
 				);
 			},
 		});
