@@ -58,7 +58,7 @@ def get_columns() -> list[dict]:
 			"width": 150,
 		},
 		{
-			"label": _("New Leave(s) Allocated"),
+			"label": _("Leave(s) Allocated"),
 			"fieldtype": "float",
 			"fieldname": "leaves_allocated",
 			"width": 200,
@@ -116,14 +116,22 @@ def get_data(filters: Filters) -> list:
 			new_allocation, expired_leaves, carry_forwarded_leaves = get_allocated_and_expired_leaves(
 				filters.from_date, filters.to_date, employee.name, leave_type
 			)
-			opening = get_opening_balance(employee.name, leave_type, filters, carry_forwarded_leaves)
+			on_allocation_boundary = is_opening_balance_on_allocation_boundary(
+				employee.name, leave_type, filters
+			)
+			opening = get_opening_balance(
+				employee.name, leave_type, filters, carry_forwarded_leaves, on_allocation_boundary
+			)
+			allocated_leaves = new_allocation + carry_forwarded_leaves
+			if on_allocation_boundary:
+				allocated_leaves -= carry_forwarded_leaves
 
-			row.leaves_allocated = flt(new_allocation, precision)
+			row.leaves_allocated = flt(allocated_leaves, precision)
 			row.leaves_expired = flt(expired_leaves, precision)
 			row.opening_balance = flt(opening, precision)
 			row.leaves_taken = flt(leaves_taken, precision)
 
-			closing = new_allocation + opening - (row.leaves_expired + leaves_taken)
+			closing = allocated_leaves + opening - (row.leaves_expired + leaves_taken)
 			row.closing_balance = flt(closing, precision)
 			row.indent = 1
 			data.append(row)
@@ -158,19 +166,17 @@ def get_employees(filters: Filters) -> list[dict]:
 
 
 def get_opening_balance(
-	employee: str, leave_type: str, filters: Filters, carry_forwarded_leaves: float
+	employee: str,
+	leave_type: str,
+	filters: Filters,
+	carry_forwarded_leaves: float,
+	on_allocation_boundary: bool,
 ) -> float:
 	# allocation boundary condition
 	# opening balance is the closing leave balance 1 day before the filter start date
 	opening_balance_date = add_days(filters.from_date, -1)
-	allocation = get_previous_allocation(filters.from_date, leave_type, employee)
 
-	if (
-		allocation
-		and allocation.get("to_date")
-		and opening_balance_date
-		and getdate(allocation.get("to_date")) == getdate(opening_balance_date)
-	):
+	if on_allocation_boundary:
 		# if opening balance date is same as the previous allocation's expiry
 		# then opening balance should only consider carry forwarded leaves
 		opening_balance = carry_forwarded_leaves
@@ -181,6 +187,18 @@ def get_opening_balance(
 	return opening_balance
 
 
+def is_opening_balance_on_allocation_boundary(employee: str, leave_type: str, filters: Filters) -> bool:
+	opening_balance_date = add_days(filters.from_date, -1)
+	allocation = get_previous_allocation(filters.from_date, leave_type, employee)
+
+	return bool(
+		allocation
+		and allocation.get("to_date")
+		and opening_balance_date
+		and getdate(allocation.get("to_date")) == getdate(opening_balance_date)
+	)
+
+
 def get_allocated_and_expired_leaves(
 	from_date: str, to_date: str, employee: str, leave_type: str
 ) -> tuple[float, float, float]:
@@ -188,34 +206,50 @@ def get_allocated_and_expired_leaves(
 	expired_leaves = 0
 	carry_forwarded_leaves = 0
 
-	records = get_leave_ledger_entries(from_date, to_date, employee, leave_type)
+	new_allocation = get_allocated_leaves(from_date, to_date, employee, leave_type)
+	expired_leaves = get_expired_leaves(from_date, to_date, employee, leave_type)
+	carry_forwarded_leaves = get_cf_leaves(from_date, to_date, employee, leave_type)
 
-	for record in records:
-		# new allocation records with `is_expired=1` are created when leave expires
-		# these new records should not be considered, else it leads to negative leave balance
-		if record.is_expired:
-			continue
-
-		if record.to_date < getdate(to_date):
-			# leave allocations ending before to_date, reduce leaves taken within that period
-			# since they are already used, they won't expire
-			expired_leaves += record.leaves
-			leaves_for_period = get_leaves_for_period(employee, leave_type, record.from_date, record.to_date)
-			expired_leaves -= min(abs(leaves_for_period), record.leaves)
-
-		if record.from_date >= getdate(from_date):
-			if record.is_carry_forward:
-				carry_forwarded_leaves += record.leaves
-			else:
-				new_allocation += record.leaves
-	# carry forwarded leaves also get counted in expired, hence subtracting them
-	expired_leaves -= carry_forwarded_leaves
 	return new_allocation, expired_leaves, carry_forwarded_leaves
 
 
-def get_leave_ledger_entries(from_date: str, to_date: str, employee: str, leave_type: str) -> list[dict]:
+def get_allocated_leaves(from_date, to_date, employee, leave_type):
 	ledger = frappe.qb.DocType("Leave Ledger Entry")
-	return (
+	allocated_leaves = (
+		frappe.qb.from_(ledger)
+		.select(Sum(ledger.leaves))
+		.where(
+			(ledger.docstatus == 1)
+			& (ledger.transaction_type.isin(["Leave Allocation", "Leave Adjustment"]))
+			& (ledger.employee == employee)
+			& (ledger.leave_type == leave_type)
+			& (ledger.from_date[from_date:to_date])
+			& ((ledger.is_expired == 0) & (ledger.is_carry_forward == 0))
+		)
+	).run()[0][0]
+	return allocated_leaves if allocated_leaves else 0.0
+
+
+def get_expired_leaves(from_date, to_date, employee, leave_type):
+	ledger = frappe.qb.DocType("Leave Ledger Entry")
+	expired_leaves = (
+		frappe.qb.from_(ledger)
+		.select(Abs(Sum(ledger.leaves)))
+		.where(
+			(ledger.docstatus == 1)
+			& (ledger.transaction_type == "Leave Allocation")
+			& (ledger.employee == employee)
+			& (ledger.leave_type == leave_type)
+			& ((ledger.from_date[from_date:to_date]) | (ledger.to_date[from_date:to_date]))
+			& (ledger.is_expired == 1)
+		)
+	).run()[0][0]
+	return expired_leaves if expired_leaves else 0.0
+
+
+def get_cf_leaves(from_date, to_date, employee, leave_type):
+	ledger = frappe.qb.DocType("Leave Ledger Entry")
+	cf_leaves = (
 		frappe.qb.from_(ledger)
 		.select(Sum(ledger.leaves))
 		.where(
@@ -223,10 +257,11 @@ def get_leave_ledger_entries(from_date: str, to_date: str, employee: str, leave_
 			& (ledger.transaction_type == "Leave Allocation")
 			& (ledger.employee == employee)
 			& (ledger.leave_type == leave_type)
-			& ((ledger.from_date[from_date:to_date]) | (ledger.to_date[from_date:to_date]))
-			& ((ledger.is_expired == 0) & (ledger.is_carry_forward == 0))
+			& (ledger.from_date[from_date:to_date])
+			& ((ledger.is_expired == 0) & (ledger.is_carry_forward == 1))
 		)
-	).run(as_dict=True)
+	).run()[0][0]
+	return cf_leaves if cf_leaves else 0.0
 
 
 def get_chart_data(data: list, filters: Filters) -> dict:
