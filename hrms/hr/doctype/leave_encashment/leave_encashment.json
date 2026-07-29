@@ -204,8 +204,9 @@
   },
   {
    "fieldname": "column_break_vdnb",
-   "fieldtype": "Column Break"},
-   {
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "0.0",
    "depends_on": "pay_via_payment_entry",
    "description": "Amount paid against this encashment",
@@ -256,8 +257,17 @@
   }
  ],
  "is_submittable": 1,
- "links": [],
- "modified": "2024-03-27 13:10:01.094420",
+ "links": [
+  {
+   "group": "Payment",
+   "is_child_table": 1,
+   "link_doctype": "Payment Entry Reference",
+   "link_fieldname": "reference_name",
+   "parent_doctype": "Payment Entry",
+   "table_fieldname": "references"
+  }
+ ],
+ "modified": "2026-06-24 11:34:04.610000",
  "modified_by": "Administrator",
  "module": "HR",
  "name": "Leave Encashment",
@@ -325,7 +335,8 @@
  "search_fields": "employee,employee_name",
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": [ {
+ "states": [
+  {
    "color": "Red",
    "title": "Draft"
   },
@@ -340,7 +351,8 @@
   {
    "color": "Red",
    "title": "Cancelled"
-  }],
+  }
+ ],
  "title_field": "employee_name",
  "track_changes": 1
 }

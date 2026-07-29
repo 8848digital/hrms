@@ -31,11 +31,6 @@ def set_loan_repayment(doc: "SalarySlip"):
 
 	if not doc.get("loans", []):
 		loan_details = _get_loan_details(doc)
-		if loan_details:
-			process_loan_interest_accruals(loan_details, doc.end_date)
-
-		for loan in loan_details:
-			amounts = calculate_amounts(loan.name, doc.end_date, "Regular Payment")
 
 		for loan in loan_details:
 			amounts = calculate_amounts(loan.name, doc.end_date)
@@ -56,8 +51,9 @@ def set_loan_repayment(doc: "SalarySlip"):
 		doc.set("loans", [])
 
 	for payment in doc.get("loans", []):
-		amounts = calculate_amounts(payment.loan, doc.end_date, "Regular Payment")
-		total_amount = amounts["interest_amount"] + amounts["payable_principal_amount"]
+		amounts = calculate_amounts(payment.loan, doc.end_date)
+		total_amount = amounts["payable_amount"]
+
 		if payment.total_payment > total_amount:
 			frappe.throw(
 				_(
@@ -75,17 +71,10 @@ def set_loan_repayment(doc: "SalarySlip"):
 		doc.total_loan_repayment += payment.total_payment
 
 
-def _get_loan_details(doc: "SalarySlip") -> dict[str, str | bool]:
+def _get_loan_details(doc: "SalarySlip") -> dict[str, Any]:
 	loan_details = frappe.get_all(
 		"Loan",
-		fields=[
-			"name",
-			"interest_income_account",
-			"loan_account",
-			"loan_product",
-			"is_term_loan",
-			"cost_center",
-		],
+		fields=["name", "interest_income_account", "loan_account", "loan_product", "is_term_loan"],
 		filters={
 			"applicant": doc.employee,
 			"docstatus": 1,
@@ -95,18 +84,6 @@ def _get_loan_details(doc: "SalarySlip") -> dict[str, str | bool]:
 		},
 	)
 	return loan_details
-
-
-def process_loan_interest_accruals(loan_details: dict[str, str | bool], posting_date: str):
-	from lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual import (
-		process_loan_interest_accrual_for_term_loans,
-	)
-
-	for loan in loan_details:
-		if loan.is_term_loan:
-			process_loan_interest_accrual_for_term_loans(
-				posting_date=posting_date, loan_product=loan.loan_product, loan=loan.name
-			)
 
 
 @if_lending_app_installed
@@ -144,7 +121,6 @@ def make_loan_repayment_entry(doc: "SalarySlip"):
 	from lending.loan_management.doctype.loan_repayment.loan_repayment import create_repayment_entry
 
 	payroll_payable_account = get_payroll_payable_account(doc.company, doc.payroll_entry)
-	cost_center_account = get_cost_center_account(doc.company, doc.payroll_entry)
 	process_payroll_accounting_entry_based_on_employee = frappe.db.get_single_value(
 		"Payroll Settings", "process_payroll_accounting_entry_based_on_employee"
 	)
@@ -168,13 +144,16 @@ def make_loan_repayment_entry(doc: "SalarySlip"):
 			loan.total_payment,
 			payroll_payable_account=payroll_payable_account,
 			process_payroll_accounting_entry_based_on_employee=process_payroll_accounting_entry_based_on_employee,
+			value_date=doc.end_date,
 		)
 
-		loan_cost_center = frappe.db.get_value("Loan", loan.loan, "cost_center")
-		repayment_entry.cost_center = loan_cost_center or cost_center_account
-
 		repayment_entry.save()
+
+		if not process_payroll_accounting_entry_based_on_employee:
+			frappe.flags.party_not_required = True
+
 		repayment_entry.submit()
+		frappe.flags.party_not_required = False
 
 		frappe.db.set_value("Salary Slip Loan", loan.name, "loan_repayment_entry", repayment_entry.name)
 
@@ -199,12 +178,3 @@ def get_payroll_payable_account(company, payroll_entry):
 		payroll_payable_account = frappe.db.get_value("Company", company, "default_payroll_payable_account")
 
 	return payroll_payable_account
-
-
-def get_cost_center_account(company, payroll_entry):
-	if payroll_entry:
-		cost_center_account = frappe.db.get_value("Payroll Entry", payroll_entry, "cost_center")
-	else:
-		cost_center_account = frappe.db.get_value("Company", company, "cost_center")
-
-	return cost_center_account
