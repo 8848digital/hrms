@@ -4,25 +4,26 @@
 from datetime import timedelta
 
 import frappe
-from frappe.tests import IntegrationTestCase
 from frappe.utils import add_months, getdate
 
 from erpnext.setup.doctype.employee.test_employee import make_employee
 
 from hrms.controllers.employee_reminders import send_holidays_reminder_in_advance
+from hrms.hr.doctype.holiday_list_assignment.test_holiday_list_assignment import (
+	create_holiday_list_assignment,
+)
 from hrms.hr.doctype.hr_settings.hr_settings import set_proceed_with_frequency_change
 from hrms.hr.utils import get_holidays_for_employee
+from hrms.tests.utils import HRMSTestSuite
 
 
-class TestEmployeeReminders(IntegrationTestCase):
-	@classmethod
-	def setUpClass(cls):
-		super().setUpClass()
+class TestEmployeeReminders(HRMSTestSuite):
+	def setUp(self):
 		from erpnext.setup.doctype.holiday_list.test_holiday_list import make_holiday_list
 
 		# Create a test holiday list
-		test_holiday_dates = cls.get_test_holiday_dates()
-		test_holiday_list = make_holiday_list(
+		test_holiday_dates = self.get_test_holiday_dates()
+		test_holiday_list1 = make_holiday_list(
 			"TestHolidayRemindersList",
 			holiday_dates=[
 				{"holiday_date": test_holiday_dates[0], "description": "test holiday1"},
@@ -39,18 +40,17 @@ class TestEmployeeReminders(IntegrationTestCase):
 		test_employee = frappe.get_doc("Employee", make_employee("test@gopher.io", company="_Test Company"))
 
 		# Attach the holiday list to employee
-		test_employee.holiday_list = test_holiday_list.name
-		test_employee.save()
+		create_holiday_list_assignment("Employee", test_employee.name, test_holiday_list1.name)
 
 		# Attach to class
-		cls.test_employee = test_employee
-		cls.test_holiday_dates = test_holiday_dates
+		self.test_employee = test_employee
+		self.test_holiday_dates = test_holiday_dates
 
 		# Employee without holidays in this month/week
 		test_employee_2 = make_employee("test@empwithoutholiday.io", company="_Test Company")
-		test_employee_2 = frappe.get_doc("Employee", test_employee_2)
+		test_employee_2 = frappe.get_doc("Employee", test_employee_2, company="_Test Company")
 
-		test_holiday_list = make_holiday_list(
+		test_holiday_list2 = make_holiday_list(
 			"TestHolidayRemindersList2",
 			holiday_dates=[
 				{"holiday_date": add_months(getdate(), 1), "description": "test holiday1"},
@@ -58,11 +58,13 @@ class TestEmployeeReminders(IntegrationTestCase):
 			from_date=add_months(getdate(), -2),
 			to_date=add_months(getdate(), 2),
 		)
-		test_employee_2.holiday_list = test_holiday_list.name
-		test_employee_2.save()
+		create_holiday_list_assignment("Employee", test_employee_2.name, test_holiday_list2.name)
+		self.test_employee_2 = test_employee_2
+		self.holiday_list_2 = test_holiday_list2
 
-		cls.test_employee_2 = test_employee_2
-		cls.holiday_list_2 = test_holiday_list
+		# Clear Email Queue
+		frappe.qb.from_("Email Queue").delete().run()
+		frappe.qb.from_("Email Queue Recipient").delete().run()
 
 	@classmethod
 	def get_test_holiday_dates(cls):
@@ -75,11 +77,6 @@ class TestEmployeeReminders(IntegrationTestCase):
 			today_date + timedelta(days=3),
 			today_date + timedelta(weeks=3),
 		]
-
-	def setUp(self):
-		# Clear Email Queue
-		frappe.db.sql("delete from `tabEmail Queue`")
-		frappe.db.sql("delete from `tabEmail Queue Recipient`")
 
 	def test_is_holiday(self):
 		from erpnext.setup.doctype.employee.employee import is_holiday
@@ -100,7 +97,9 @@ class TestEmployeeReminders(IntegrationTestCase):
 		self.assertTrue("test holiday1" in descriptions)
 
 	def test_birthday_reminders(self):
-		employee = frappe.get_doc("Employee", frappe.db.sql_list("select name from tabEmployee limit 1")[0])
+		employee = frappe.get_doc(
+			"Employee", frappe.qb.from_("Employee").select("name").limit(1).run(pluck="name")[0]
+		)
 		employee.date_of_birth = "1992" + frappe.utils.nowdate()[4:]
 		employee.company_email = "test@example.com"
 		employee.company = "_Test Company"
@@ -120,7 +119,7 @@ class TestEmployeeReminders(IntegrationTestCase):
 
 		send_birthday_reminders()
 
-		email_queue = frappe.db.sql("""select * from `tabEmail Queue`""", as_dict=True)
+		email_queue = frappe.qb.from_("Email Queue").select("*").run(as_dict=True)
 		self.assertTrue("Subject: Birthday Reminder" in email_queue[0].message)
 
 	def test_work_anniversary_reminders(self):
@@ -149,7 +148,7 @@ class TestEmployeeReminders(IntegrationTestCase):
 
 		send_work_anniversary_reminders()
 
-		email_queue = frappe.db.sql("""select * from `tabEmail Queue`""", as_dict=True)
+		email_queue = frappe.qb.from_("Email Queue").select("*").run(as_dict=True)
 		self.assertTrue("Subject: Work Anniversary Reminder" in email_queue[0].message)
 
 	def test_work_anniversary_reminder_not_sent_for_0_years(self):
@@ -182,7 +181,7 @@ class TestEmployeeReminders(IntegrationTestCase):
 
 		send_holidays_reminder_in_advance(self.test_employee.get("name"), holidays)
 
-		email_queue = frappe.db.sql("""select * from `tabEmail Queue`""", as_dict=True)
+		email_queue = frappe.qb.from_("Email Queue").select("*").run(as_dict=True)
 		self.assertEqual(len(email_queue), 1)
 		self.assertTrue("Holidays this Week." in email_queue[0].message)
 
@@ -199,7 +198,7 @@ class TestEmployeeReminders(IntegrationTestCase):
 		)
 
 		send_reminders_in_advance_monthly()
-		email_queue = frappe.db.sql("""select * from `tabEmail Queue`""", as_dict=True)
+		email_queue = frappe.qb.from_("Email Queue").select("*").run(as_dict=True)
 		self.assertTrue(len(email_queue) > 0)
 
 		# even though emp 2 has holiday, non-active employees should not be recipients
@@ -226,7 +225,7 @@ class TestEmployeeReminders(IntegrationTestCase):
 		)
 
 		send_reminders_in_advance_weekly()
-		email_queue = frappe.db.sql("""select * from `tabEmail Queue`""", as_dict=True)
+		email_queue = frappe.qb.from_("Email Queue").select("*").run(as_dict=True)
 		self.assertTrue(len(email_queue) > 0)
 
 		# even though emp 2 has holiday, non-active employees should not be recipients
@@ -252,7 +251,7 @@ class TestEmployeeReminders(IntegrationTestCase):
 			raise_exception=False,
 		)
 		send_holidays_reminder_in_advance(self.test_employee_2.get("name"), holidays)
-		email_queue = frappe.db.sql("""select * from `tabEmail Queue`""", as_dict=True)
+		email_queue = frappe.qb.from_("Email Queue").select("*").run(as_dict=True)
 		self.assertEqual(len(email_queue), 0)
 
 
