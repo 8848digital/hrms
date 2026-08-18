@@ -229,22 +229,6 @@ class AttendanceRequest(Document):
 			return True
 		return False
 
-			if not self.include_holidays and is_holiday(self.employee, attendance_date):
-				attendance_warnings.append({"date": attendance_date, "reason": "Holiday", "action": "Skip"})
-			elif self.has_leave_record(attendance_date):
-				attendance_warnings.append({"date": attendance_date, "reason": "On Leave", "action": "Skip"})
-			else:
-				attendance = self.get_attendance_record(attendance_date)
-				if attendance:
-					attendance_warnings.append(
-						{
-							"date": attendance_date,
-							"reason": "Attendance already marked",
-							"record": attendance,
-							"action": "Overwrite",
-						}
-					)
-
 	def after_delete(self):
 		self.publish_update()
 
