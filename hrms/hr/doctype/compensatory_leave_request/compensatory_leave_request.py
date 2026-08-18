@@ -124,27 +124,6 @@ class CompensatoryLeaveRequest(Document):
 			)
 			frappe.throw(msg, title=_("No Leave Period Found"))
 
-			else:
-				leave_allocation = self.create_leave_allocation(
-					leave_period, date_difference
-				)
-			self.db_set("leave_allocation", leave_allocation.name)
-		else:
-			comp_leave_valid_from = frappe.bold(format_date(comp_leave_valid_from))
-			msg = _("This compensatory leave will be applicable from {0}.").format(
-				comp_leave_valid_from
-			)
-			msg += " " + _(
-				"Currently, there is no {0} leave period for this date to create/update leave allocation."
-			).format(frappe.bold(_("active")))
-			msg += "<br><br>" + _(
-				"Please create a new {0} for the date {1} first."
-			).format(
-				f"""<a href='{get_url_to_list("Leave Period")}'>Leave Period</a>""",
-				comp_leave_valid_from,
-			)
-			frappe.throw(msg, title=_("No Leave Period Found"))
-
 	def on_cancel(self):
 		if self.leave_allocation:
 			date_difference = date_diff(self.work_end_date, self.work_from_date) + 1
