@@ -31,5 +31,6 @@ hrms.patches.v15_0.create_marginal_relief_field_for_india_localisation
 hrms.patches.v15_0.set_half_day_status_to_present_in_exisiting_half_day_attendance
 hrms.patches.v14_0.create_marginal_relief_field_for_india_localisation
 hrms.patches.v15_0.check_version_compatibility_with_frappe #2023-06-27
-
 hrms.patches.v15_0.add_leave_type_permission_for_ess
+hrms.patches.v15_0.remove_ess_user_type_limit
+hrms.patches.v15_0.update_approver_custom_fields

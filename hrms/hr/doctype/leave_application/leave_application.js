@@ -161,7 +161,6 @@ frappe.ui.form.on("Leave Application", {
 	},
 
 	to_date: function (frm) {
-		frm.events.validate_from_to_date(frm, "from_date");
 		frm.events.validate_from_to_date(frm, "to_date");
 		frm.trigger("make_dashboard");
 		frm.trigger("half_day_datepicker");
@@ -169,6 +168,7 @@ frappe.ui.form.on("Leave Application", {
 	},
 
 	half_day_date(frm) {
+		frm.trigger("validate_half_day_date");
 		frm.trigger("calculate_total_days");
 	},
 
@@ -230,7 +230,20 @@ frappe.ui.form.on("Leave Application", {
 			});
 		}
 	},
+	validate_half_day_date: function (frm) {
+		if (!frm.doc.half_day_date) {
+			return;
+		}
 
+		return frm
+			.call("validate_half_day_date")
+			.then(() => {
+				frm.trigger("calculate_total_days");
+			})
+			.catch(() => {
+				frm.set_value("half_day_date", "");
+			});
+	},
 	calculate_total_days: function (frm) {
 		if (frm.doc.from_date && frm.doc.to_date && frm.doc.employee && frm.doc.leave_type) {
 			// server call is done to include holidays in leave days calculations
@@ -287,10 +300,14 @@ frappe.ui.form.on("Leave Application", {
 		}
 	},
 	show_save_button: function (frm) {
-		frm.page.set_primary_action("Save", () => {
+		frm.page.set_primary_action(__("Save"), () => {
 			frm.save();
 		});
 		$(".form-message").prop("hidden", true);
+	},
+	posting_date: function (frm) {
+		frm.trigger("make_dashboard");
+		frm.trigger("get_leave_balance");
 	},
 });
 
