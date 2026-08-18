@@ -16,9 +16,9 @@ test_dependencies = ["Customer"]
 
 
 class TestProjectProfitability(IntegrationTestCase):
-	def setUp(self):
-		frappe.db.delete("Timesheet")
-		emp = make_employee("test_employee_9@salary.com", company="_Test Company")
+    def setUp(self):
+        frappe.db.delete("Timesheet")
+        emp = make_employee("test_employee_9@salary.com", company="_Test Company")
 
         frappe.db.set_single_value("HR Settings", "standard_working_hours", 8)
         frappe.db.set_single_value(
