@@ -21,22 +21,22 @@ from hrms.payroll.doctype.salary_structure_assignment.salary_structure_assignmen
 
 
 class LeaveEncashment(AccountsController):
-	def validate(self):
-		set_employee_name(self)
-		validate_active_employee(self.employee)
-		self.encashment_date = self.encashment_date or getdate()
-		self.get_leave_details_for_encashment()
-		self.set_status()
-
-		if not self.pay_via_payment_entry:
-			self.set_salary_structure()
+    def validate(self):
+        set_employee_name(self)
+        validate_active_employee(self.employee)
+        self.encashment_date = self.encashment_date or getdate()
+        self.get_leave_details_for_encashment()
+        self.set_status()
 
         if not self.pay_via_payment_entry:
             self.set_salary_structure()
 
-	def before_submit(self):
-		if not self.encashment_amount or self.encashment_amount <= 0:
-			frappe.throw(_("You can only submit Leave Encashment for a valid encashment amount"))
+        if not self.pay_via_payment_entry:
+            self.set_salary_structure()
+
+    def before_submit(self):
+        if not self.encashment_amount or self.encashment_amount <= 0:
+            frappe.throw(_("You can only submit Leave Encashment for a valid encashment amount"))
     def set_salary_structure(self):
         self._salary_structure = get_assigned_salary_structure(
             self.employee, self.encashment_date
@@ -54,13 +54,13 @@ class LeaveEncashment(AccountsController):
                 _("You can only submit Leave Encashment for a valid encashment amount")
             )
 
-		if self.pay_via_payment_entry:
-			self.create_gl_entries()
-		else:
-			self.create_additional_salary()
+        if self.pay_via_payment_entry:
+            self.create_gl_entries()
+        else:
+            self.create_additional_salary()
 
-		self.set_encashed_leaves_in_allocation()
-		self.create_leave_ledger_entry()
+        self.set_encashed_leaves_in_allocation()
+        self.create_leave_ledger_entry()
     def on_submit(self):
         if not self.leave_allocation:
             self.db_set("leave_allocation", self.get_leave_allocation().get("name"))
@@ -160,59 +160,59 @@ class LeaveEncashment(AccountsController):
                 )
             )
 
-	def create_additional_salary(self):
-		additional_salary = frappe.new_doc("Additional Salary")
-		additional_salary.company = frappe.get_value("Employee", self.employee, "company")
-		additional_salary.employee = self.employee
-		additional_salary.currency = self.currency
-		earning_component = frappe.get_value("Leave Type", self.leave_type, "earning_component")
-		if not earning_component:
-			frappe.throw(_("Please set Earning Component for Leave type: {0}.").format(self.leave_type))
-		additional_salary.salary_component = earning_component
-		additional_salary.payroll_date = self.encashment_date
-		additional_salary.amount = self.encashment_amount
-		additional_salary.overwrite_salary_structure_amount = 0
-		additional_salary.ref_doctype = self.doctype
-		additional_salary.ref_docname = self.name
-		additional_salary.submit()
+    def create_additional_salary(self):
+        additional_salary = frappe.new_doc("Additional Salary")
+        additional_salary.company = frappe.get_value("Employee", self.employee, "company")
+        additional_salary.employee = self.employee
+        additional_salary.currency = self.currency
+        earning_component = frappe.get_value("Leave Type", self.leave_type, "earning_component")
+        if not earning_component:
+            frappe.throw(_("Please set Earning Component for Leave type: {0}.").format(self.leave_type))
+        additional_salary.salary_component = earning_component
+        additional_salary.payroll_date = self.encashment_date
+        additional_salary.amount = self.encashment_amount
+        additional_salary.overwrite_salary_structure_amount = 0
+        additional_salary.ref_doctype = self.doctype
+        additional_salary.ref_docname = self.name
+        additional_salary.submit()
 
-	def set_encashed_leaves_in_allocation(self):
-		frappe.db.set_value(
-			"Leave Allocation",
-			self.leave_allocation,
-			"total_leaves_encashed",
-			frappe.db.get_value("Leave Allocation", self.leave_allocation, "total_leaves_encashed")
-			+ self.encashment_days,
-		)
+    def set_encashed_leaves_in_allocation(self):
+        frappe.db.set_value(
+            "Leave Allocation",
+            self.leave_allocation,
+            "total_leaves_encashed",
+            frappe.db.get_value("Leave Allocation", self.leave_allocation, "total_leaves_encashed")
+            + self.encashment_days,
+        )
 
-	def set_encashment_amount(self):
-		if not hasattr(self, "_salary_structure"):
-			self.set_salary_structure()
+    def set_encashment_amount(self):
+        if not hasattr(self, "_salary_structure"):
+            self.set_salary_structure()
 
-		per_day_encashment = frappe.db.get_value(
-			"Salary Structure", self._salary_structure, "leave_encashment_amount_per_day"
-		)
-		self.encashment_amount = self.encashment_days * per_day_encashment if per_day_encashment > 0 else 0
+        per_day_encashment = frappe.db.get_value(
+            "Salary Structure", self._salary_structure, "leave_encashment_amount_per_day"
+        )
+        self.encashment_amount = self.encashment_days * per_day_encashment if per_day_encashment > 0 else 0
 
-	def set_status(self, update=False):
-		precision = self.precision("paid_amount")
-		status = None
+    def set_status(self, update=False):
+        precision = self.precision("paid_amount")
+        status = None
 
-		if self.docstatus == 0:
-			status = "Draft"
-		elif self.docstatus == 1:
-			if flt(self.encashment_amount) > flt(self.paid_amount, precision):
-				status = "Unpaid"
-			else:
-				status = "Paid"
-		elif self.docstatus == 2:
-			status = "Cancelled"
+        if self.docstatus == 0:
+            status = "Draft"
+        elif self.docstatus == 1:
+            if flt(self.encashment_amount) > flt(self.paid_amount, precision):
+                status = "Unpaid"
+            else:
+                status = "Paid"
+        elif self.docstatus == 2:
+            status = "Cancelled"
 
-		if update:
-			self.db_set("status", status)
-			self.notify_update()
-		else:
-			self.status = status
+        if update:
+            self.db_set("status", status)
+            self.notify_update()
+        else:
+            self.status = status
 
     def create_additional_salary(self):
         additional_salary = frappe.new_doc("Additional Salary")
@@ -340,15 +340,15 @@ class LeaveEncashment(AccountsController):
         from frappe.query_builder.functions import Abs, Sum
         aple = frappe.qb.DocType("Advance Payment Ledger Entry")
         paid_amount = (
-			frappe.qb.from_(aple)
-			.select(Abs(Sum(aple.amount)).as_("paid_amount"))
-			.where(
-				(aple.company == self.company)
-				& (aple.against_voucher_type == self.doctype)
-				& (aple.against_voucher_no == self.name)
-				& (aple.delinked == 0)
-			)
-		).run(as_dict=True)[0].paid_amount or 0
+            frappe.qb.from_(aple)
+            .select(Abs(Sum(aple.amount)).as_("paid_amount"))
+            .where(
+                (aple.company == self.company)
+                & (aple.against_voucher_type == self.doctype)
+                & (aple.against_voucher_no == self.name)
+                & (aple.delinked == 0)
+            )
+        ).run(as_dict=True)[0].paid_amount or 0
         
         if flt(paid_amount) > self.encashment_amount:
             frappe.throw(_("Row {0}# Paid Amount cannot be greater than Encashment amount"))
@@ -388,89 +388,89 @@ class LeaveEncashment(AccountsController):
             additional_salary.ref_docname = self.name
             additional_salary.submit()	
 
-		to_date = leave_allocation.get("to_date")
+        to_date = leave_allocation.get("to_date")
 
-		can_expire = not frappe.db.get_value("Leave Type", self.leave_type, "is_carry_forward")
-		if to_date < getdate() and can_expire:
-			args = frappe._dict(
-				leaves=self.encashment_days, from_date=to_date, to_date=to_date, is_carry_forward=0
-			)
-			create_leave_ledger_entry(self, args, submit)
+        can_expire = not frappe.db.get_value("Leave Type", self.leave_type, "is_carry_forward")
+        if to_date < getdate() and can_expire:
+            args = frappe._dict(
+                leaves=self.encashment_days, from_date=to_date, to_date=to_date, is_carry_forward=0
+            )
+            create_leave_ledger_entry(self, args, submit)
 
-	def set_total_advance_paid(self):
-		from frappe.query_builder.functions import Abs, Sum
+    def set_total_advance_paid(self):
+        from frappe.query_builder.functions import Abs, Sum
 
-		aple = frappe.qb.DocType("Advance Payment Ledger Entry")
-		paid_amount = (
-			frappe.qb.from_(aple)
-			.select(Abs(Sum(aple.amount)).as_("paid_amount"))
-			.where(
-				(aple.company == self.company)
-				& (aple.against_voucher_type == self.doctype)
-				& (aple.against_voucher_no == self.name)
-				& (aple.delinked == 0)
-			)
-		).run(as_dict=True)[0].paid_amount or 0
-		if flt(paid_amount) > self.encashment_amount:
-			frappe.throw(_("Row {0}# Paid Amount cannot be greater than Encashment amount"))
+        aple = frappe.qb.DocType("Advance Payment Ledger Entry")
+        paid_amount = (
+            frappe.qb.from_(aple)
+            .select(Abs(Sum(aple.amount)).as_("paid_amount"))
+            .where(
+                (aple.company == self.company)
+                & (aple.against_voucher_type == self.doctype)
+                & (aple.against_voucher_no == self.name)
+                & (aple.delinked == 0)
+            )
+        ).run(as_dict=True)[0].paid_amount or 0
+        if flt(paid_amount) > self.encashment_amount:
+            frappe.throw(_("Row {0}# Paid Amount cannot be greater than Encashment amount"))
 
-		self.db_set("paid_amount", paid_amount)
-		self.set_status(update=True)
+        self.db_set("paid_amount", paid_amount)
+        self.set_status(update=True)
 
-	def create_gl_entries(self, cancel=False):
-		gl_entries = self.get_gl_entries()
-		make_gl_entries(gl_entries, cancel)
+    def create_gl_entries(self, cancel=False):
+        gl_entries = self.get_gl_entries()
+        make_gl_entries(gl_entries, cancel)
 
-	def get_gl_entries(self):
-		gl_entry = []
+    def get_gl_entries(self):
+        gl_entry = []
 
-		# payable entry
-		gl_entry.append(
-			self.get_gl_dict(
-				{
-					"account": self.payable_account,
-					"credit": self.encashment_amount,
-					"credit_in_account_currency": self.encashment_amount,
-					"against": self.expense_account,
-					"party_type": "Employee",
-					"party": self.employee,
-					"against_voucher_type": self.doctype,
-					"against_voucher": self.name,
-					"cost_center": self.cost_center,
-				},
-				item=self,
-			)
-		)
+        # payable entry
+        gl_entry.append(
+            self.get_gl_dict(
+                {
+                    "account": self.payable_account,
+                    "credit": self.encashment_amount,
+                    "credit_in_account_currency": self.encashment_amount,
+                    "against": self.expense_account,
+                    "party_type": "Employee",
+                    "party": self.employee,
+                    "against_voucher_type": self.doctype,
+                    "against_voucher": self.name,
+                    "cost_center": self.cost_center,
+                },
+                item=self,
+            )
+        )
 
-		# expense entry
-		gl_entry.append(
-			self.get_gl_dict(
-				{
-					"account": self.expense_account,
-					"debit": self.encashment_amount,
-					"debit_in_account_currency": self.encashment_amount,
-					"against": self.payable_account,
-					"cost_center": self.cost_center,
-				},
-				item=self,
-			)
-		)
+        # expense entry
+        gl_entry.append(
+            self.get_gl_dict(
+                {
+                    "account": self.expense_account,
+                    "debit": self.encashment_amount,
+                    "debit_in_account_currency": self.encashment_amount,
+                    "against": self.payable_account,
+                    "cost_center": self.cost_center,
+                },
+                item=self,
+            )
+        )
 
-		return gl_entry
+        return gl_entry
 
 
 def create_leave_encashment(leave_allocation):
-	"""Creates leave encashment for the given allocations"""
-	for allocation in leave_allocation:
-		if not get_assigned_salary_structure(allocation.employee, allocation.to_date):
-			continue
-		leave_encashment = frappe.get_doc(
-			dict(
-				doctype="Leave Encashment",
-				leave_period=allocation.leave_period,
-				employee=allocation.employee,
-				leave_type=allocation.leave_type,
-				encashment_date=allocation.to_date,
-			)
-		)
-		leave_encashment.insert(ignore_permissions=True)
+    """Creates leave encashment for the given allocations"""
+    for allocation in leave_allocation:
+        if not get_assigned_salary_structure(allocation.employee, allocation.to_date):
+            continue
+        leave_encashment = frappe.get_doc(
+            dict(
+                doctype="Leave Encashment",
+                leave_period=allocation.leave_period,
+                employee=allocation.employee,
+                leave_type=allocation.leave_type,
+                encashment_date=allocation.to_date,
+            )
+        )
+        leave_encashment.insert(ignore_permissions=True)
