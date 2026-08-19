@@ -24,8 +24,11 @@
   "salary_component",
   "hour_rate",
   "earning_deduction",
+  "column_break_besp",
   "earnings",
   "deductions",
+  "employer_contributions",
+  "employee_benefits",
   "conditions_and_formula_variable_and_example",
   "net_pay_detail",
   "total_earning",
@@ -161,6 +164,12 @@
    "options": "Salary Detail"
   },
   {
+   "fieldname": "employer_contributions",
+   "fieldtype": "Table",
+   "label": "Employer Contributions",
+   "options": "Salary Detail"
+  },
+  {
    "fieldname": "net_pay_detail",
    "fieldtype": "Section Break",
    "options": "Simple"
@@ -236,13 +245,24 @@
    "options": "Currency",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "description": "Enter yearly benefit amounts",
+   "fieldname": "employee_benefits",
+   "fieldtype": "Table",
+   "label": "Flexible Benefits",
+   "options": "Employee Benefit Detail"
+  },
+  {
+   "fieldname": "column_break_besp",
+   "fieldtype": "Column Break"
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-11-22 11:17:28.384386",
+ "modified": "2026-06-08 17:39:39.847210",
  "modified_by": "Administrator",
  "module": "Payroll",
  "name": "Salary Structure",
@@ -280,6 +300,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "show_name_in_global_search": 1,
  "sort_field": "creation",
  "sort_order": "DESC",

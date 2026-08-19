@@ -83,9 +83,9 @@ def make_salary_components(country):
 			doc.flags.ignore_permissions = True
 			doc.flags.ignore_mandatory = True
 			doc.insert(ignore_if_duplicate=True)
-		except frappe.NameError:
-			frappe.clear_messages()
-		except frappe.DuplicateEntryError:
+		except Exception as e:
+			frappe.error_log("Error occurred while creating Salary Component", e)
+		finally:
 			frappe.clear_messages()
 
 
@@ -133,6 +133,7 @@ def validate_default_accounts(doc, method=None):
 				).format(frappe.bold(_("Default Payroll Payable Account")))
 			)
 
+
 def handle_linked_docs(doc, method=None):
 	delete_docs_with_company_field(doc)
 	clear_company_field_for_single_doctypes(doc)
@@ -144,10 +145,10 @@ def delete_docs_with_company_field(doc, method=None):
 	"""
 	company_data_to_be_ignored = frappe.get_hooks("company_data_to_be_ignored") or []
 	for doctype in company_data_to_be_ignored:
-		# get field in the doctype linked to Company
 		records_to_delete = frappe.get_all(doctype, filters={"company": doc.name}, pluck="name")
 		if records_to_delete:
 			frappe.db.delete(doctype, {"name": ["in", records_to_delete]})
+
 
 def clear_company_field_for_single_doctypes(doc):
 	"""
