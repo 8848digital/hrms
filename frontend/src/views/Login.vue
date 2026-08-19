@@ -1,7 +1,37 @@
 <template>
 	<ion-page>
 		<ion-content class="ion-padding">
-			<div class="flex h-screen w-screen flex-col justify-center bg-white">
+			<div
+				v-if="resetPassword.showDialog"
+				class="flex h-screen w-screen flex-col bg-white"
+			>
+				<header class="flex items-center justify-between px-6 py-4">
+					<div class="text-lg font-semibold text-gray-900">
+						{{ __("Reset Password") }}
+					</div>
+					<button
+						type="button"
+						class="text-sm text-gray-600 hover:text-gray-900 underline"
+						@click="resetPassword.showDialog = false"
+					>
+						{{ __("Back to Login") }}
+					</button>
+				</header>
+				<div class="flex flex-1 flex-col items-center justify-center px-8 text-center">
+					<p class="text-gray-700">
+						{{ __("Your password has expired. Please reset your password to continue") }}
+					</p>
+					<a
+						class="mt-6 inline-flex items-center justify-center gap-2 transition-colors focus:outline-none text-white bg-gray-900 hover:bg-gray-800 active:bg-gray-700 focus-visible:ring focus-visible:ring-gray-400 h-9 text-base px-4 rounded"
+						:href="resetPassword.link"
+						target="_blank"
+					>
+						{{ __("Go to Reset Password page") }}
+					</a>
+				</div>
+			</div>
+
+			<div v-else class="flex h-screen w-screen flex-col justify-center bg-white">
 				<div class="flex flex-col mx-auto gap-3 items-center">
 					<FrappeHRLogo class="h-8 w-8" />
 					<div class="text-3xl font-semibold text-gray-900 text-center">
@@ -10,7 +40,7 @@
 				</div>
 
 				<div class="mx-auto mt-10 w-full px-8 sm:w-96">
-					<form class="flex flex-col space-y-4" @submit.prevent="submit">
+					<form v-if="!user_pass_login_disabled.data" class="flex flex-col space-y-4" @submit.prevent="submit">
 						<Input
 							:label="__('Email')"
 							:placeholder="__('johndoe@mail.com')"
@@ -33,10 +63,18 @@
 						>
 							{{ __("Login") }}
 						</Button>
+						<div class="text-center mt-4">
+							<router-link
+								:to="{ name: 'ForgotPassword', query: email ? { email } : {} }"
+								class="text-sm text-gray-600 hover:text-gray-900 underline"
+							>
+								{{ __("Forgot Password?") }}
+							</router-link>
+						</div>
 					</form>
 
 					<template v-if="authProviders.data?.length">
-						<div class="text-center text-sm text-gray-600 my-4">or</div>
+						<div v-if="!user_pass_login_disabled.data" class="text-center text-sm text-gray-600 my-4">or</div>
 						<div class="space-y-4">
 							<a
 								v-for="provider in authProviders.data"
@@ -49,29 +87,10 @@
 							</a>
 						</div>
 					</template>
+
+					<div v-else-if="user_pass_login_disabled.data" class="text-center text-gray-600 py-8">{{ __("No login methods are available. Please contact your administrator.") }}</div>
 				</div>
 			</div>
-
-			<Dialog v-model="resetPassword.showDialog">
-				<template #body-title>
-					<h2 class="text-lg font-bold">{{ __("Reset Password") }} </h2>
-				</template>
-				<template #body-content>
-					<p>
-						{{ __("Your password has expired. Please reset your password to continue") }}
-					</p>
-				</template>
-				<template #actions>
-					<a
-						class="inline-flex items-center justify-center gap-2 transition-colors focus:outline-none text-white bg-gray-900 hover:bg-gray-800 active:bg-gray-700 focus-visible:ring focus-visible:ring-gray-400 h-7 text-base px-2 rounded"
-						:href="resetPassword.link"
-						target="_blank"
-					>
-						{{ __("Go to Reset Password page") }}
-					</a>
-				</template>
-			</Dialog>
-
 			<Dialog v-model="otp.showDialog">
 				<template #body-title>
 					<h2 class="text-lg font-bold">{{ __("OTP Verification") }}</h2>
@@ -127,8 +146,8 @@ const otp = reactive({
 })
 
 const session = inject("$session")
-
 const __ = inject("$translate")
+
 async function submit(e) {
 	try {
 		let response
@@ -161,6 +180,13 @@ async function submit(e) {
 		errorMessage.value = error.messages.join("\n")
 	}
 }
+
+const user_pass_login_disabled = createResource({
+	url: "hrms.api.system_settings.get_user_pass_login_disabled",
+	method: 'GET',
+	initialData: 1,
+	auto: true,
+})
 
 const authProviders = createResource({
 	url: "hrms.api.oauth.oauth_providers",
