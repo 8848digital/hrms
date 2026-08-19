@@ -1,12 +1,10 @@
 import os
 
 import frappe
+from frappe import N_ as _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-from frappe.desk.page.setup_wizard.install_fixtures import (
-	_,  # NOTE: this is not the real translation function
-)
 from frappe.desk.page.setup_wizard.setup_wizard import make_records
-from frappe.installer import update_site_config
+from frappe.permissions import add_permission, update_permission_property
 
 from hrms.overrides.company import delete_company_fixtures
 
@@ -19,8 +17,10 @@ def after_install():
 	update_hr_defaults()
 	add_non_standard_user_types()
 	set_single_defaults()
+	setup_repost_defaults()
 	create_default_role_profiles()
 	run_post_install_patches()
+	add_default_hr_permissions()
 
 
 def before_uninstall():
@@ -57,7 +57,7 @@ def get_custom_fields():
 				"fieldname": "hr_and_payroll_tab",
 				"fieldtype": "Tab Break",
 				"label": _("HR & Payroll"),
-				"insert_after": "credit_limit",
+				"insert_after": "purchase_expense_contra_account",
 			},
 			{
 				"fieldname": "hr_settings_section",
@@ -186,6 +186,7 @@ def get_custom_fields():
 				"label": _("Employment Type"),
 				"options": "Employment Type",
 				"insert_after": "department",
+				"in_list_view": 1,
 			},
 			{
 				"fieldname": "job_applicant",
@@ -241,6 +242,7 @@ def get_custom_fields():
 				"label": _("Expense Approver"),
 				"options": "User",
 				"insert_after": "approvers_section",
+				"ignore_user_permissions": 1,
 			},
 			{
 				"fieldname": "leave_approver",
@@ -248,6 +250,7 @@ def get_custom_fields():
 				"label": _("Leave Approver"),
 				"options": "User",
 				"insert_after": "expense_approver",
+				"ignore_user_permissions": 1,
 			},
 			{
 				"fieldname": "column_break_45",
@@ -260,11 +263,19 @@ def get_custom_fields():
 				"label": _("Shift Request Approver"),
 				"options": "User",
 				"insert_after": "column_break_45",
+				"ignore_user_permissions": 1,
+			},
+			{
+				"fieldname": "employee_advance_account",
+				"fieldtype": "Link",
+				"label": _("Employee Advance Account"),
+				"options": "Account",
+				"insert_after": "salary_mode",
 			},
 			{
 				"fieldname": "salary_cb",
 				"fieldtype": "Column Break",
-				"insert_after": "salary_mode",
+				"insert_after": "employee_advance_account",
 			},
 			{
 				"fetch_from": "department.payroll_cost_center",
@@ -602,61 +613,54 @@ def remove_lending_docperms_from_ess():
 # ESS USER TYPE SETUP & CLEANUP
 def add_non_standard_user_types():
 	user_types = get_user_types_data()
-	update_user_type_doctype_limit(user_types)
 
 	for user_type, data in user_types.items():
 		create_custom_role(data)
 		create_user_type(user_type, data)
 
 
-def update_user_type_doctype_limit(user_types=None):
-	if not user_types:
-		user_types = get_user_types_data()
-
-	user_type_limit = {}
-	for user_type, __ in user_types.items():
-		user_type_limit.setdefault(frappe.scrub(user_type), 40)
-
-	update_site_config("user_type_doctype_limit", user_type_limit)
-
-
 def get_user_types_data():
-	doctypes = {
-		# masters
-		"Holiday List": ["read"],
-		"Employee": ["read", "write"],
-		"Company": ["read"],
-
-		# payroll
-		"Salary Slip": ["read"],
-		"Employee Benefit Application": ["read", "write", "create", "delete"],
-
-		# expenses
-		"Expense Claim": ["read", "write", "create", "delete"],
-		"Expense Claim Type": ["read"],
-		"Employee Advance": ["read", "write", "create", "delete"],
-
-		# leave
-		"Leave Application": ["read", "write", "create", "delete"],
-		"Leave Type": ["read"],
-
-		# attendance
-		"Attendance Request": ["read", "write", "create", "delete"],
-		"Compensatory Leave Request": ["read", "write", "create", "delete"],
-	}
-
-	# Only add Timesheet if it exists
-	if frappe.db.exists("DocType", "Timesheet"):
-		doctypes["Timesheet"] = ["read", "write", "create", "delete", "submit", "cancel", "amend"]
-
 	return {
 		"Employee Self Service": {
 			"role": "Employee Self Service",
 			"apply_user_permission_on": "Employee",
 			"user_id_field": "user_id",
-			"doctypes": doctypes,
+			"doctypes": {
+				# masters
+				"Holiday List": ["read"],
+				"Employee": ["read", "write"],
+				"Company": ["read"],
+				# payroll
+				"Salary Slip": ["read"],
+				"Employee Benefit Application": ["read", "write", "create", "delete"],
+				# expenses
+				"Expense Claim": ["read", "write", "create", "delete"],
+				"Expense Claim Type": ["read"],
+				"Employee Advance": ["read", "write", "create", "delete"],
+				# leave and attendance
+				"Leave Type": ["read"],
+				"Leave Application": ["read", "write", "create", "delete"],
+				"Attendance Request": ["read", "write", "create", "delete"],
+				"Compensatory Leave Request": ["read", "write", "create", "delete"],
+				# tax
+				"Employee Tax Exemption Declaration": ["read", "write", "create", "delete"],
+				"Employee Tax Exemption Proof Submission": ["read", "write", "create", "delete"],
+				# projects
+				"Timesheet": ["read", "write", "create", "delete", "submit", "cancel", "amend"],
+				# trainings
+				"Training Program": ["read"],
+				"Training Feedback": ["read", "write", "create", "delete", "submit", "cancel", "amend"],
+				# shifts
+				"Employee Checkin": ["read"],
+				"Shift Request": ["read", "write", "create", "delete", "submit", "cancel", "amend"],
+				# misc
+				"Employee Grievance": ["read", "write", "create", "delete"],
+				"Employee Referral": ["read", "write", "create", "delete"],
+				"Travel Request": ["read", "write", "create", "delete"],
+			},
 		}
 	}
+
 
 def get_lending_docperms_for_ess():
 	return {
@@ -692,22 +696,7 @@ def create_user_type(user_type, data):
 	if doc.role == "Employee Self Service" and "lending" in frappe.get_installed_apps():
 		docperms.update(get_lending_docperms_for_ess())
 
-	docperms = data.get("doctypes")
-
 	append_docperms_to_user_type(docperms, doc)
-
-	# Remove invalid doctypes before saving
-	valid_rows = []
-	for row in doc.user_doctypes:
-		if frappe.db.exists("DocType", row.document_type):
-			valid_rows.append(row)
-		else:
-			frappe.logger().warning(f"Skipping missing DocType: {row.document_type}")
-
-	doc.user_doctypes = valid_rows
-
-	doc.flags.ignore_links = True
-	doc.save(ignore_permissions=True)
 
 	doc.flags.ignore_links = True
 	doc.save(ignore_permissions=True)
@@ -717,17 +706,10 @@ def append_docperms_to_user_type(docperms, doc):
 	existing_doctypes = [d.document_type for d in doc.user_doctypes]
 
 	for doctype, perms in docperms.items():
-
-		# Skip doctypes that are not installed
-		if not frappe.db.exists("DocType", doctype):
-			frappe.logger().warning(f"Skipping missing DocType: {doctype}")
-			continue
-
 		if doctype in existing_doctypes:
 			continue
 
 		args = {"document_type": doctype}
-
 		for perm in perms:
 			args[perm] = 1
 
@@ -869,3 +851,41 @@ def get_salary_slip_loan_fields():
 			},
 		],
 	}
+
+
+# Add default permission for hr roles
+def add_default_hr_permissions():
+	# Project and Task perms are needed for the Employee Onboarding / Separation flow,
+	# which creates a Project and Tasks and assigns them to users. assign_to.add() does a
+	# read check on Task, and on_cancel deletes the Project and its Tasks.
+	project_task_perms = {
+		"Project": {"read": 1, "write": 1, "create": 1, "delete": 1},
+		"Task": {"read": 1, "write": 1, "create": 1, "delete": 1},
+	}
+	role_permissions = {
+		"HR User": {
+			"Role": {"read": 1},
+			"Currency": {"read": 1},
+			**project_task_perms,
+		},
+		"HR Manager": {
+			"Role": {"read": 1},
+			"Currency": {"read": 1},
+			"Email Account": {"read": 1},
+			**project_task_perms,
+		},
+	}
+
+	for role, permissions in role_permissions.items():
+		for doctype, ptypes in permissions.items():
+			add_permission(doctype, role)
+
+			for ptype, value in ptypes.items():
+				update_permission_property(doctype, role, permlevel=0, ptype=ptype, value=value)
+
+
+def setup_repost_defaults():
+	accounts_settings = frappe.get_doc("Accounts Settings")
+	for x in frappe.get_hooks("repost_allowed_doctypes"):
+		accounts_settings.append("repost_allowed_types", {"document_type": x})
+	accounts_settings.save()
