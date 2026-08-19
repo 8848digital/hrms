@@ -1,13 +1,14 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # License: GNU General Public License v3. See license.txt
 
+import datetime
 import re
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import cint, cstr, flt
+from frappe.utils import cint, cstr, flt, get_link_to_form
 
 import erpnext
 
@@ -15,6 +16,39 @@ from hrms.payroll.utils import sanitize_expression
 
 
 class SalaryStructure(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from hrms.payroll.doctype.employee_benefit_detail.employee_benefit_detail import EmployeeBenefitDetail
+		from hrms.payroll.doctype.salary_detail.salary_detail import SalaryDetail
+
+		amended_from: DF.Link | None
+		company: DF.Link
+		currency: DF.Link
+		deductions: DF.Table[SalaryDetail]
+		earnings: DF.Table[SalaryDetail]
+		employee_benefits: DF.Table[EmployeeBenefitDetail]
+		hour_rate: DF.Currency
+		is_active: DF.Literal["", "Yes", "No"]
+		is_default: DF.Literal["Yes", "No"]
+		leave_encashment_amount_per_day: DF.Currency
+		letter_head: DF.Link | None
+		max_benefits: DF.Currency
+		mode_of_payment: DF.Link | None
+		net_pay: DF.Currency
+		payment_account: DF.Link | None
+		payroll_frequency: DF.Literal["", "Monthly", "Fortnightly", "Bimonthly", "Weekly", "Daily"]
+		salary_component: DF.Link | None
+		salary_slip_based_on_timesheet: DF.Check
+		total_deduction: DF.Currency
+		total_earning: DF.Currency
+	# end: auto-generated types
+
 	def before_validate(self):
 		self.sanitize_condition_and_formula_fields()
 
@@ -24,11 +58,11 @@ class SalaryStructure(Document):
 	def validate(self):
 		self.set_missing_values()
 		self.validate_amount()
-		self.validate_max_benefits_with_flexi()
 		self.validate_component_based_on_tax_slab()
 		self.validate_payment_days_based_dependent_component()
 		self.validate_timesheet_component()
 		self.validate_formula_setup()
+		validate_max_benefit_for_flexible_benefit(self.employee_benefits, self.max_benefits)
 
 	def on_update(self):
 		self.reset_condition_and_formula_fields()
@@ -135,7 +169,7 @@ class SalaryStructure(Document):
 				break
 
 	def sanitize_condition_and_formula_fields(self):
-		for table in ("earnings", "deductions"):
+		for table in ("earnings", "deductions", "employer_contributions"):
 			for row in self.get(table):
 				row.condition = row.condition.strip() if row.condition else ""
 				row.formula = row.formula.strip() if row.formula else ""
@@ -144,69 +178,38 @@ class SalaryStructure(Document):
 
 	def reset_condition_and_formula_fields(self):
 		# set old values (allowing multiline strings for better readability in the doctype form)
-		for table in ("earnings", "deductions"):
+		for table in ("earnings", "deductions", "employer_contributions"):
 			for row in self.get(table):
 				row.condition = row._condition
 				row.formula = row._formula
 
 		self.db_update_all()
 
-	def validate_max_benefits_with_flexi(self):
-		have_a_flexi = False
-		if self.earnings:
-			flexi_amount = 0
-			for earning_component in self.earnings:
-				if earning_component.is_flexible_benefit == 1:
-					have_a_flexi = True
-					max_of_component = frappe.db.get_value(
-						"Salary Component", earning_component.salary_component, "max_benefit_amount"
-					)
-					flexi_amount += max_of_component
-
-			if have_a_flexi and flt(self.max_benefits) == 0:
-				frappe.throw(_("Max benefits should be greater than zero to dispense benefits"))
-			if have_a_flexi and flexi_amount and flt(self.max_benefits) > flexi_amount:
-				frappe.throw(
-					_(
-						"Total flexible benefit component amount {0} should not be less than max benefits {1}"
-					).format(flexi_amount, self.max_benefits)
-				)
-		if not have_a_flexi and flt(self.max_benefits) > 0:
-			frappe.throw(
-				_("Salary Structure should have flexible benefit component(s) to dispense benefit amount")
-			)
-
 	def get_employees(self, **kwargs):
-		conditions, values = [], []
+		Employee = frappe.qb.DocType("Employee")
+		query = frappe.qb.from_(Employee).select(Employee.name).where(Employee.status == "Active")
 		for field, value in kwargs.items():
 			if value:
-				conditions.append(f"{field}=%s")
-				values.append(value)
+				query = query.where(Employee[field] == value)
 
-		condition_str = " and " + " and ".join(conditions) if conditions else ""
-
-		# nosemgrep: frappe-semgrep-rules.rules.frappe-using-db-sql
-		employees = frappe.db.sql_list(
-			f"select name from tabEmployee where status='Active' {condition_str}",
-			tuple(values),
-		)
+		employees = query.run(pluck="name")
 
 		return employees
 
 	@frappe.whitelist()
 	def assign_salary_structure(
 		self,
-		branch=None,
-		grade=None,
-		department=None,
-		designation=None,
-		employee=None,
-		payroll_payable_account=None,
-		from_date=None,
-		base=None,
-		variable=None,
-		income_tax_slab=None,
-	):
+		branch: str | None = None,
+		grade: str | None = None,
+		department: str | None = None,
+		designation: str | None = None,
+		employee: str | None = None,
+		payroll_payable_account: str | None = None,
+		from_date: str | None = None,
+		base: float | None = None,
+		variable: float | None = None,
+		income_tax_slab: str | None = None,
+	) -> None:
 		employees = self.get_employees(
 			company=self.company,
 			grade=grade,
@@ -337,15 +340,19 @@ def create_salary_structure_assignment(
 
 
 def get_existing_assignments(employees, salary_structure, from_date):
-	# nosemgrep: frappe-semgrep-rules.rules.frappe-using-db-sql
-	salary_structures_assignments = frappe.db.sql_list(
-		f"""
-		SELECT DISTINCT employee FROM `tabSalary Structure Assignment`
-		WHERE salary_structure=%s AND employee IN ({", ".join(["%s"] * len(employees))})
-		AND from_date=%s AND company=%s AND docstatus=1
-		""",
-		[salary_structure.name, *employees, from_date, salary_structure.company],
-	)
+	ssa = frappe.qb.DocType("Salary Structure Assignment")
+	salary_structures_assignments = (
+		frappe.qb.from_(ssa)
+		.select(ssa.employee)
+		.distinct()
+		.where(
+			(ssa.salary_structure == salary_structure.name)
+			& (ssa.employee.isin(employees))
+			& (ssa.from_date == from_date)
+			& (ssa.company == salary_structure.company)
+			& (ssa.docstatus == 1)
+		)
+	).run(pluck="employee")
 	if salary_structures_assignments:
 		frappe.msgprint(
 			_(
@@ -357,22 +364,50 @@ def get_existing_assignments(employees, salary_structure, from_date):
 
 @frappe.whitelist()
 def make_salary_slip(
-	source_name,
-	target_doc=None,
-	employee=None,
-	posting_date=None,
-	as_print=False,
-	print_format=None,
-	for_preview=0,
-	ignore_permissions=False,
-):
+	source_name: str,
+	target_doc: str | Document | None = None,
+	employee: str | None = None,
+	posting_date: str | datetime.date | None = None,
+	as_print: bool = False,
+	print_format: str | None = None,
+	for_preview: int = 0,
+	lwp_days_corrected: float | None = None,
+) -> str | Document:
+	if employee:
+		frappe.has_permission("Employee", "read", employee, throw=True)
+
+	return _make_salary_slip(
+		source_name,
+		target_doc=target_doc,
+		employee=employee,
+		posting_date=posting_date,
+		as_print=as_print,
+		print_format=print_format,
+		for_preview=for_preview,
+		lwp_days_corrected=lwp_days_corrected,
+	)
+
+
+def _make_salary_slip(
+	source_name: str,
+	target_doc: str | Document | None = None,
+	employee: str | None = None,
+	posting_date: str | datetime.date | None = None,
+	as_print: bool = False,
+	print_format: str | None = None,
+	for_preview: int = 0,
+	lwp_days_corrected: float | None = None,
+	ignore_permissions: bool = False,
+) -> str | Document:
 	def postprocess(source, target):
 		if employee:
 			target.employee = employee
 			if posting_date:
 				target.posting_date = posting_date
 
-		target.run_method("process_salary_structure", for_preview=for_preview)
+		target.run_method(
+			"process_salary_structure", for_preview=for_preview, lwp_days_corrected=lwp_days_corrected
+		)
 
 	doc = get_mapped_doc(
 		"Salary Structure",
@@ -389,8 +424,8 @@ def make_salary_slip(
 		},
 		target_doc,
 		postprocess,
-		ignore_child_tables=True,
 		ignore_permissions=ignore_permissions,
+		ignore_child_tables=True,
 		cached=True,
 	)
 
@@ -402,7 +437,7 @@ def make_salary_slip(
 
 
 @frappe.whitelist()
-def get_employees(salary_structure):
+def get_employees(salary_structure: str) -> list[str]:
 	employees = frappe.get_list(
 		"Salary Structure Assignment",
 		filters={"salary_structure": salary_structure, "docstatus": 1},
@@ -420,7 +455,9 @@ def get_employees(salary_structure):
 
 
 @frappe.whitelist()
-def get_salary_component(doctype, txt, searchfield, start, page_len, filters):
+def get_salary_component(
+	doctype: str, txt: str, searchfield: str, start: int, page_len: int, filters: dict
+) -> list:
 	sc = frappe.qb.DocType("Salary Component")
 	sca = frappe.qb.DocType("Salary Component Account")
 
@@ -447,3 +484,44 @@ def get_salary_component(doctype, txt, searchfield, start, page_len, filters):
 				accounts.append((component.name, component.account, component.company))
 
 	return accounts
+
+
+def validate_max_benefit_for_flexible_benefit(employee_benefits, max_benefits=None):
+	if not employee_benefits:
+		return
+
+	benefit_total = 0
+	benefit_components = []
+
+	for benefit in employee_benefits:
+		if benefit.salary_component in benefit_components:
+			frappe.throw(
+				_("Salary Component {0} cannot be selected more than once in Employee Benefits").format(
+					benefit.salary_component
+				)
+			)
+
+		benefit_total += benefit.amount
+		max_of_component = frappe.db.get_value(
+			"Salary Component", benefit.salary_component, "max_benefit_amount"
+		)
+		if max_of_component and max_of_component > 0 and benefit.amount > max_of_component:
+			frappe.throw(
+				_(
+					"Benefit amount {0} for Salary Component {1} should not be greater than maximum benefit amount {2} set in {3}"
+				).format(
+					benefit.amount,
+					benefit.salary_component,
+					max_of_component,
+					get_link_to_form("Salary Component", benefit.salary_component),
+				)
+			)
+		benefit_components.append(benefit.salary_component)
+
+	if max_benefits and benefit_total > max_benefits:
+		frappe.throw(
+			_("Total of all employee benefits cannot be greater that Max Benefits Amount {0}").format(
+				max_benefits
+			),
+			title=_("Invalid Benefit Amounts"),
+		)
