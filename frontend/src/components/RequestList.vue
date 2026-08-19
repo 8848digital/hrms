@@ -37,14 +37,15 @@
 		:initial-breakpoint="1"
 		:breakpoints="[0, 1]"
 	>
-		<RequestActionSheet :fields="fieldsMap[selectedRequest?.doctype]" v-model="selectedRequest" />
+		<RequestActionSheet
+			:fields="fieldsMap[selectedRequest?.doctype]" 
+			v-model="selectedRequest"
+		/>
 	</ion-modal>
 </template>
 
 <script setup>
 import { ref, inject } from "vue"
-
-
 import { IonModal } from "@ionic/vue"
 import RequestActionSheet from "@/components/RequestActionSheet.vue"
 
