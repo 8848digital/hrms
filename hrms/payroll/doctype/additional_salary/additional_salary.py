@@ -5,30 +5,49 @@
 import frappe
 from frappe import _, bold
 from frappe.model.document import Document
-from frappe.utils import comma_and, date_diff, formatdate, get_link_to_form, getdate
+from frappe.utils import comma_and, date_diff, flt, fmt_money, formatdate, get_link_to_form, getdate
 
 from hrms.hr.utils import validate_active_employee
 
 
 class AdditionalSalary(Document):
+    # begin: auto-generated types
+    # This code is auto-generated. Do not modify anything in this block.
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from frappe.types import DF
+
+        amended_from: DF.Link | None
+        amount: DF.Currency
+        company: DF.Link
+        currency: DF.Link
+        deduct_full_tax_on_selected_payroll_date: DF.Check
+        department: DF.Link | None
+        disabled: DF.Check
+        employee: DF.Link
+        employee_name: DF.Data | None
+        from_date: DF.Date | None
+        is_recurring: DF.Check
+        naming_series: DF.Literal["HR-ADS-.YY.-.MM.-"]
+        overwrite_salary_structure_amount: DF.Check
+        payroll_date: DF.Date | None
+        ref_docname: DF.DynamicLink | None
+        ref_doctype: DF.Link | None
+        salary_component: DF.Link
+        to_date: DF.Date | None
+        type: DF.Data | None
+    # end: auto-generated types
+
     def before_validate(self):
         if self.payroll_date and self.is_recurring:
             self.payroll_date = None
 
     def on_submit(self):
-        self.update_return_amount_in_employee_advance()
         self.update_employee_referral()
 
-    def validate(self):
-        validate_active_employee(self.employee)
-        self.validate_dates()
-        self.validate_salary_structure()
-        self.validate_recurring_additional_salary_overlap()
-        self.validate_employee_referral()
-        self.validate_duplicate_additional_salary()
-        self.validate_tax_component_overwrite()
     def on_cancel(self):
-        self.update_return_amount_in_employee_advance()
         self.update_employee_referral(cancel=True)
 
     def validate(self):
@@ -44,15 +63,45 @@ class AdditionalSalary(Document):
         if self.amount < 0:
             frappe.throw(_("Amount should not be less than zero"))
 
+        if self.ref_doctype == "Employee Advance":
+            self.validate_employee_advance_return()
+
     def validate_salary_structure(self):
-        if not frappe.db.exists(
-            "Salary Structure Assignment", {"employee": self.employee}
-        ):
+        salary_structure = frappe.db.get_value(
+            "Salary Structure Assignment",
+            {
+                "employee": self.employee,
+                "docstatus": 1,
+                "from_date": ["<=", self.payroll_date or self.from_date],
+            },
+            "salary_structure",
+            order_by="from_date desc",
+        )
+
+        if not salary_structure:
             frappe.throw(
-                _(
-                    "There is no Salary Structure assigned to {0}. First assign a Salary Stucture."
-                ).format(self.employee)
+                _("There is no Salary Structure assigned to {0}. First assign a Salary Structure.").format(
+                    self.employee
+                )
             )
+
+        if self.overwrite_salary_structure_amount:
+            is_structure_component = frappe.db.get_value(
+                "Salary Detail",
+                {
+                    "parenttype": "Salary Structure",
+                    "parent": salary_structure,
+                    "salary_component": self.salary_component,
+                },
+            )
+
+            if not is_structure_component:
+                self.overwrite_salary_structure_amount = 0
+                frappe.msgprint(
+                    _(
+                        "Overwrite Salary Structure Amount is disabled as the Salary Component: {0} not part of the Salary Structure: {1}"
+                    ).format(self.salary_component, salary_structure)
+                )
 
     def validate_recurring_additional_salary_overlap(self):
         if self.is_recurring:
@@ -92,29 +141,22 @@ class AdditionalSalary(Document):
 
         self.validate_from_to_dates("from_date", "to_date")
 
+        if self.is_recurring and not (self.from_date and self.to_date):
+            frappe.throw(_("From and to dates are madatory for recurring type additional salaries."))
+        elif (not self.is_recurring) and (not self.payroll_date):
+            frappe.throw(_("Payroll date is mandatory for non-recurring type additional salaries."))
+
         if date_of_joining:
-            if self.payroll_date and getdate(self.payroll_date) < getdate(
-                date_of_joining
-            ):
-                frappe.throw(
-                    _("Payroll date can not be less than employee's joining date.")
-                )
+            if self.payroll_date and getdate(self.payroll_date) < getdate(date_of_joining):
+                frappe.throw(_("Payroll date can not be less than employee's joining date."))
             elif self.from_date and getdate(self.from_date) < getdate(date_of_joining):
-                frappe.throw(
-                    _("From date can not be less than employee's joining date.")
-                )
+                frappe.throw(_("From date can not be less than employee's joining date."))
 
         if relieving_date:
             if self.to_date and getdate(self.to_date) > getdate(relieving_date):
-                frappe.throw(
-                    _("To date can not be greater than employee's relieving date.")
-                )
-            if self.payroll_date and getdate(self.payroll_date) > getdate(
-                relieving_date
-            ):
-                frappe.throw(
-                    _("Payroll date can not be greater than employee's relieving date.")
-                )
+                frappe.throw(_("To date can not be greater than employee's relieving date."))
+            if self.payroll_date and getdate(self.payroll_date) > getdate(relieving_date):
+                frappe.throw(_("Payroll date can not be greater than employee's relieving date."))
 
     def validate_employee_referral(self):
         if self.ref_doctype == "Employee Referral":
@@ -127,10 +169,11 @@ class AdditionalSalary(Document):
 
             if not referral_details.is_applicable_for_referral_bonus:
                 frappe.throw(
-                    _(
-                        "Employee Referral {0} is not applicable for referral bonus."
-                    ).format(self.ref_docname)
+                    _("Employee Referral {0} is not applicable for referral bonus.").format(self.ref_docname)
                 )
+
+            if self.type == "Deduction":
+                frappe.throw(_("Earning Salary Component is required for Employee Referral Bonus."))
 
             if referral_details.status != "Accepted":
                 frappe.throw(
@@ -138,60 +181,6 @@ class AdditionalSalary(Document):
                         "Additional Salary for referral bonus can only be created against Employee Referral with status {0}"
                     ).format(frappe.bold(_("Accepted")))
                 )
-
-    def validate_duplicate_additional_salary(self):
-        if not self.overwrite_salary_structure_amount:
-            return
-
-        existing_additional_salary = frappe.db.exists(
-            "Additional Salary",
-            {
-                "name": ["!=", self.name],
-                "salary_component": self.salary_component,
-                "payroll_date": self.payroll_date,
-                "overwrite_salary_structure_amount": 1,
-                "employee": self.employee,
-                "docstatus": 1,
-            },
-        )
-
-        if existing_additional_salary:
-            msg = _(
-                "Additional Salary for this salary component with {0} enabled already exists for this date"
-            ).format(frappe.bold(_("Overwrite Salary Structure Amount")))
-            msg += "<br><br>"
-            msg += _("Reference: {0}").format(
-                get_link_to_form("Additional Salary", existing_additional_salary)
-            )
-            frappe.throw(msg, title=_("Duplicate Overwritten Salary"))
-
-    def validate_tax_component_overwrite(self):
-        if not frappe.db.get_value(
-            "Salary Component", self.salary_component, "variable_based_on_taxable_salary"
-        ):
-            return
-
-        if self.overwrite_salary_structure_amount:
-            frappe.msgprint(
-                _(
-                    "This will overwrite the tax component {0} in the salary slip and tax won't be calculated based on the Income Tax Slabs"
-                ).format(frappe.bold(self.salary_component)),
-                title=_("Warning"),
-                indicator="orange",
-            )
-        else:
-            msg = _("{0} has {1} enabled").format(
-                get_link_to_form("Salary Component", self.salary_component),
-                frappe.bold(_("Variable Based On Taxable Salary")),
-            )
-            msg += "<br><br>" + _(
-                "To overwrite the salary component amount for a tax component, please enable {0}"
-            ).format(frappe.bold(_("Overwrite Salary Structure Amount")))
-            frappe.throw(msg, title=_("Invalid Additional Salary"))
-
-    def update_return_amount_in_employee_advance(self):
-        if self.ref_doctype == "Employee Advance" and self.ref_docname:
-            return_amount = frappe.db.get_value("Employee Advance", self.ref_docname, "return_amount")
 
     def validate_duplicate_additional_salary(self):
         if not self.overwrite_salary_structure_amount:
@@ -234,9 +223,7 @@ class AdditionalSalary(Document):
 
     def validate_tax_component_overwrite(self):
         if not frappe.db.get_value(
-            "Salary Component",
-            self.salary_component,
-            "variable_based_on_taxable_salary",
+            "Salary Component", self.salary_component, "variable_based_on_taxable_salary"
         ):
             return
 
@@ -259,9 +246,7 @@ class AdditionalSalary(Document):
             frappe.throw(msg, title=_("Invalid Additional Salary"))
 
     def validate_accrual_component(self):
-        if frappe.db.get_value(
-            "Salary Component", self.salary_component, "accrual_component"
-        ):
+        if frappe.db.get_value("Salary Component", self.salary_component, "accrual_component"):
             frappe.msgprint(
                 _(
                     "{0} is an Accrual Component and this will be recorded as a payout in Employee Benefits Ledger"
@@ -270,29 +255,58 @@ class AdditionalSalary(Document):
                 indicator="orange",
             )
 
-    def update_return_amount_in_employee_advance(self):
-        if self.ref_doctype == "Employee Advance" and self.ref_docname:
-            return_amount = frappe.db.get_value(
-                "Employee Advance", self.ref_docname, "return_amount"
+    def validate_employee_advance_return(self):
+        if self.ref_doctype != "Employee Advance" or not self.ref_docname:
+            return
+
+        precision = self.precision("amount")
+        advance = frappe.get_doc("Employee Advance", self.ref_docname)
+
+        AdditionalSalary = frappe.qb.DocType("Additional Salary")
+        scheduled_deductions = (
+            frappe.qb.from_(AdditionalSalary)
+            .select(AdditionalSalary.name, AdditionalSalary.amount)
+            .where(
+                (AdditionalSalary.ref_doctype == "Employee Advance")
+                & (AdditionalSalary.ref_docname == self.ref_docname)
+                & (AdditionalSalary.docstatus == 1)
+                & (AdditionalSalary.name != self.name)
+            )
+        ).run(as_dict=True) or []
+
+        available_return_amount = flt(advance.paid_amount - advance.claimed_amount, precision)
+        scheduled_return_amount = flt(sum(flt(d.amount, precision) for d in scheduled_deductions), precision)
+        remaining_return_amount = flt(available_return_amount - scheduled_return_amount, precision)
+
+        if flt(self.amount, precision) <= remaining_return_amount:
+            return
+
+        # scheduled via AS but not yet processed through payroll
+        pending_scheduled = max(0, flt(scheduled_return_amount - advance.return_amount, precision))
+
+        if pending_scheduled > 0:
+            msg = _(
+                "Employee Advance {0} has {1} available for return. {2} has already been scheduled for deduction in {3}."
+            ).format(
+                get_link_to_form("Employee Advance", self.ref_docname),
+                fmt_money(remaining_return_amount, currency=self.currency),
+                fmt_money(pending_scheduled, currency=self.currency),
+                comma_and([get_link_to_form("Additional Salary", d.name) for d in scheduled_deductions]),
+            )
+        else:
+            msg = _(
+                "The amount exceeds the available balance for Employee Advance {0}. Available amount for return: {1}."
+            ).format(
+                get_link_to_form("Employee Advance", self.ref_docname),
+                fmt_money(remaining_return_amount, currency=self.currency),
             )
 
-            if self.docstatus == 2:
-                return_amount -= self.amount
-            else:
-                return_amount += self.amount
-
-            frappe.db.set_value(
-                "Employee Advance", self.ref_docname, "return_amount", return_amount
-            )
-            advance = frappe.get_doc("Employee Advance", self.ref_docname)
-            advance.set_status(update=True)
+        frappe.throw(msg, title=_("Amount Exceeds Available Balance"))
 
     def update_employee_referral(self, cancel=False):
         if self.ref_doctype == "Employee Referral":
             status = "Unpaid" if cancel else "Paid"
-            frappe.db.set_value(
-                "Employee Referral", self.ref_docname, "referral_payment_status", status
-            )
+            frappe.db.set_value("Employee Referral", self.ref_docname, "referral_payment_status", status)
 
     def get_amount(self, sal_start_date, sal_end_date):
         start_date = getdate(sal_start_date)
@@ -306,7 +320,7 @@ class AdditionalSalary(Document):
         no_of_days = date_diff(getdate(end_date), getdate(start_date)) + 1
         return amount_per_day * no_of_days
 
-    def validate_update_after_submit(self):
+    def before_update_after_submit(self):
         if not self.disabled:
             self.validate_recurring_additional_salary_overlap()
 
